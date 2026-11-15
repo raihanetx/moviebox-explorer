@@ -417,7 +417,7 @@ app root, that is `../docs/`.
 2. MovieBoxApi.home(host) → GET /wefeed-h5api-bff/home?host=…
 3. MovieBoxApi.trending(page=0) → Suggestions row
 4. UI renders hero + platform strip + rails
-5. User taps a poster → DetailViewModel
+5. User taps a poster → `resolveBestMatch(title)` picks the best version → DetailViewModel
 6. repository.loadTitle(detailPath, subjectId)
 7. MovieBoxApi.detail(...) → H5 record
 8. For every dub: MovieBoxApi.detail(...) or MobileApi.detail(...)
@@ -1082,6 +1082,11 @@ finite row set.
 #### Detail
 
 - Loads `repository.loadTitle(detailPath, subjectId)`.
+- Before opening, `resolveBestMatch(title)` searches the mobile API and scores the
+  candidates: exact title first, then prefix/substring; penalises re-edit, recap,
+  compilation, summary, mini-anime, special, OVA, movie cut and “part”; prefers entries
+  with a resource, a rating and `subjectType=2`. If no better match is found, it opens
+  the original poster.
 - Shows:
   - poster, title, year, rating, genre, country;
   - synopsis;
@@ -1778,6 +1783,7 @@ All paths below are relative to the app root, `moviebox-explorer/`.
 | Change playback selection | `core/.../Playback.kt` |
 | Change downloads | `app/.../data/Downloads.kt` + `ui/DownloadsScreen.kt` + `DetailViewModel.download()` |
 | Change search result order | `core/.../SearchRank.kt` |
+| Change poster best-match scoring | `core/.../SearchRank.bestMatch()` + `MovieBoxRepository.resolveBestMatch()` |
 | Change risk gating | `core/.../RiskPolicy.kt` + `ui/AdultGate.kt` |
 | Change diagnostics checks | `core/.../MovieBoxRepository.diagnostics()` + `ui/DiagnosticsScreen.kt` |
 | Change automated emulator test | `app/src/androidTest/.../DiagnosticsInstrumentedTest.kt` + `.github/workflows/android-ci.yml` |

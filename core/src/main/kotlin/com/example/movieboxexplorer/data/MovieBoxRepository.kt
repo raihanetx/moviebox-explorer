@@ -38,6 +38,39 @@ class MovieBoxRepository(
         return mobile.copy(items = SearchRank.rank(mobile.items, keyword))
     }
 
+    /**
+     * Resolve the best matching version for a poster click.
+     *
+     * The API search is fuzzy and can return a recap, a re-edit, a special or a
+     * different year first. This scores the candidates and returns the best one, with
+     * a usable `detailPath`; if nothing better is found, it returns the original
+     * poster.
+     */
+    suspend fun resolveBestMatch(title: String, fallback: SubjectBrief): SubjectBrief {
+        if (title.isBlank()) return fallback
+
+        val candidates = runCatching {
+            mobile.searchSubjects(title, perPage = 10)
+        }.getOrDefault(emptyList())
+
+        val best = SearchRank.bestMatch(candidates, title) ?: return fallback
+        if (best.subjectId.isBlank() || best.subjectId == fallback.subjectId) return fallback
+
+        val detail = runCatching { mobile.detail(best.subjectId) }.getOrNull()
+        val subject = detail?.subject
+        val path = subject?.detailPath
+            ?.ifBlank { subject.detailUrl.trimEnd('/').substringAfterLast('/') }
+            .orEmpty()
+            .ifBlank { best.detailPath }
+
+        if (path.isBlank()) return fallback
+
+        return best.copy(
+            detailPath = path,
+            cover = best.cover ?: fallback.cover,
+        )
+    }
+
     suspend fun suggest(keyword: String): List<String> = api.suggest(keyword)
 
     suspend fun everyoneSearch(): EveryoneSearchPage = api.everyoneSearch()

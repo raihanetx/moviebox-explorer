@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ import com.example.movieboxexplorer.ui.RankingViewModel
 import com.example.movieboxexplorer.ui.SearchScreen
 import com.example.movieboxexplorer.ui.SearchViewModel
 import com.example.movieboxexplorer.ui.theme.MovieBoxTheme
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 class MainActivity : ComponentActivity() {
@@ -144,6 +146,17 @@ private fun MovieBoxApp() {
             MovieBoxRepository(MovieBoxApi(settings.apiBase, settings.siteHosts(), "https://${settings.siteHost}"))
         }
         val navController = rememberNavController()
+        val openDetailScope = rememberCoroutineScope()
+        val openDetail: (SubjectBrief) -> Unit = { subject ->
+            openDetailScope.launch {
+                val best = runCatching {
+                    repository.resolveBestMatch(subject.title, subject)
+                }.getOrDefault(subject)
+                navController.navigate(
+                    "detail/${Uri.encode(best.detailPath)}/${best.subjectId}",
+                )
+            }
+        }
         val backStack by navController.currentBackStackEntryAsState()
         val currentRoute = backStack?.destination?.route
         var showSettings by remember { mutableStateOf(false) }
@@ -190,7 +203,7 @@ private fun MovieBoxApp() {
                     )
                     HomeScreen(
                         viewModel = viewModel,
-                        onOpen = { subject -> openDetail(navController, subject) },
+                        onOpen = { subject -> openDetail(subject) },
                         onSearch = { navController.navigate("search") },
                         onOpenRanking = { navController.navigate("ranking") },
                         onOpenSettings = { showSettings = true },
@@ -205,7 +218,7 @@ private fun MovieBoxApp() {
                     CatalogScreen(
                         viewModel = viewModel,
                         title = "Movies",
-                        onOpen = { subject -> openDetail(navController, subject) },
+                        onOpen = { subject -> openDetail(subject) },
                     )
                 }
 
@@ -216,7 +229,7 @@ private fun MovieBoxApp() {
                     CatalogScreen(
                         viewModel = viewModel,
                         title = "Animation",
-                        onOpen = { subject -> openDetail(navController, subject) },
+                        onOpen = { subject -> openDetail(subject) },
                     )
                 }
 
@@ -227,7 +240,7 @@ private fun MovieBoxApp() {
                     CatalogScreen(
                         viewModel = viewModel,
                         title = "TV Shows",
-                        onOpen = { subject -> openDetail(navController, subject) },
+                        onOpen = { subject -> openDetail(subject) },
                     )
                 }
 
@@ -247,7 +260,7 @@ private fun MovieBoxApp() {
                     )
                     RankingScreen(
                         viewModel = viewModel,
-                        onOpen = { subject -> openDetail(navController, subject) },
+                        onOpen = { subject -> openDetail(subject) },
                     )
                 }
 
@@ -267,7 +280,7 @@ private fun MovieBoxApp() {
                     )
                     SearchScreen(
                         viewModel = viewModel,
-                        onOpen = { subject -> openDetail(navController, subject) },
+                        onOpen = { subject -> openDetail(subject) },
                         onOpenSettings = { showSettings = true },
                     )
                 }
@@ -304,7 +317,7 @@ private fun MovieBoxApp() {
                                 "player/trailer?title=${Uri.encode(title)}&video=${Uri.encode(video)}"
                             )
                         },
-                        onOpen = { subject -> openDetail(navController, subject) },
+                        onOpen = { subject -> openDetail(subject) },
                     )
                 }
 
@@ -350,12 +363,6 @@ private fun MovieBoxApp() {
             )
         }
     }
-}
-
-private fun openDetail(navController: androidx.navigation.NavHostController, subject: SubjectBrief) {
-    navController.navigate(
-        "detail/${Uri.encode(subject.detailPath)}/${subject.subjectId}"
-    )
 }
 
 @Composable

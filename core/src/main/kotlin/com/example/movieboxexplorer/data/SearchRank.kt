@@ -25,6 +25,50 @@ object SearchRank {
         )
     }
 
+    /**
+     * Pick the best candidate for [keyword].
+     *
+     * Prefers an exact title, then a prefix/substring match. Penalises recaps,
+     * compilations, specials, re-edits and movie cuts. Prefers entries that have a
+     * resource and a rating.
+     */
+    fun bestMatch(items: List<SubjectBrief>, keyword: String): SubjectBrief? {
+        val query = keyword.trim().lowercase()
+        if (query.isBlank() || items.isEmpty()) return null
+        return items.maxByOrNull { bestMatchScore(it, query) }
+    }
+
+    private fun bestMatchScore(item: SubjectBrief, query: String): Int {
+        val title = item.title.lowercase()
+        var score = when {
+            title == query -> 100
+            query in title -> 60
+            title.startsWith(query) -> 50
+            else -> 0
+        }
+
+        BAD_WORDS.forEach { word ->
+            if (word in title) score -= 40
+        }
+        if (item.hasResource) score += 20
+        score += (item.imdbRatingValue.toFloatOrNull() ?: 0f).toInt() * 2
+        if (item.subjectType == 2) score += 10
+        return score
+    }
+
+    private val BAD_WORDS = listOf(
+        "re-edit",
+        "re edit",
+        "recap",
+        "compilation",
+        "summary",
+        "mini-anime",
+        "special",
+        "ova",
+        "movie",
+        "part ",
+    )
+
     private fun score(item: SubjectBrief, query: String): Int {
         val title = normalize(item.title)
         var score = when {

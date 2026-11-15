@@ -2,6 +2,7 @@ package com.example.movieboxexplorer.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Search results are language variants, not guesses. The exact / un-suffixed record
@@ -10,6 +11,18 @@ import kotlin.test.assertEquals
 class SearchRankTest {
 
     private fun subject(title: String) = SubjectBrief(subjectId = title.hashCode().toString(), title = title)
+
+    private fun subject(
+        title: String,
+        hasResource: Boolean,
+        rating: String = "",
+    ) = SubjectBrief(
+        subjectId = title.hashCode().toString(),
+        title = title,
+        hasResource = hasResource,
+        imdbRatingValue = rating,
+        subjectType = 2,
+    )
 
     @Test
     fun `exact title beats a language variant`() {
@@ -80,5 +93,37 @@ class SearchRankTest {
     fun `a blank query keeps the original order`() {
         val items = listOf(subject("B"), subject("A"))
         assertEquals(items, SearchRank.rank(items, "  "))
+    }
+
+    @Test
+    fun `best match picks the exact title over a language variant`() {
+        val best = SearchRank.bestMatch(
+            listOf(subject("Black Torch [Hindi]"), subject("Black Torch")),
+            "Black Torch",
+        )
+        assertEquals("Black Torch", best?.title)
+    }
+
+    @Test
+    fun `best match penalises re-edits and recaps`() {
+        val best = SearchRank.bestMatch(
+            listOf(subject("Black Torch Re-edit"), subject("Black Torch Recap"), subject("Black Torch")),
+            "Black Torch",
+        )
+        assertEquals("Black Torch", best?.title)
+    }
+
+    @Test
+    fun `best match prefers an entry that has a resource`() {
+        val best = SearchRank.bestMatch(
+            listOf(subject("Black Torch", hasResource = false), subject("Black Torch", hasResource = true)),
+            "Black Torch",
+        )
+        assertEquals(true, best?.hasResource)
+    }
+
+    @Test
+    fun `best match returns null when there are no candidates`() {
+        assertNull(SearchRank.bestMatch(emptyList(), "Black Torch"))
     }
 }
