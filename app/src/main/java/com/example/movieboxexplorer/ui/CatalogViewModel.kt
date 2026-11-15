@@ -1,0 +1,135 @@
+package com.example.movieboxexplorer.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.movieboxexplorer.data.CatalogContent
+import com.example.movieboxexplorer.data.CatalogFilter
+import com.example.movieboxexplorer.data.CatalogGrid
+import com.example.movieboxexplorer.data.FilterGroup
+import com.example.movieboxexplorer.data.MovieBoxRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+enum class CatalogKind { MOVIES, ANIMATED, TV }
+
+sealed interface CatalogUiState {
+    data object Loading : CatalogUiState
+
+    data class Ready(
+        val content: CatalogContent,
+        val filters: List<FilterGroup> = emptyList(),
+        val filter: CatalogFilter = CatalogFilter(),
+        val loadingMore: Boolean = false,
+    ) : CatalogUiState
+
+    data class Error(val message: String) : CatalogUiState
+}
+
+class CatalogViewModel(
+    private val repository: MovieBoxRepository,
+    private val host: String,
+    private val kind: CatalogKind,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow<CatalogUiState>(CatalogUiState.Loading)
+    val state: StateFlow<CatalogUiState> = _state.asStateFlow()
+
+    private val _filter = MutableStateFlow(CatalogFilter())
+
+    init {
+        load()
+    }
+
+    fun load() {
+        viewModelScope.launch {
+            _state.value = CatalogUiState.Loading
+            _state.value = try {
+                val content = buildContent(1, _filter.value)
+                val filters = gridFilterConfig()
+                CatalogUiState.Ready(content = content, filters = filters, filter = _filter.value)
+            } catch (e: Exception) {
+                CatalogUiState.Error(e.message ?: "Failed to load catalogue")
+            }
+        }
+    }
+
+    /** Loads the next page of a grid catalog, the way the website's "load more" does. */
+    fun loadMore() {
+        val current = _state.value as? CatalogUiState.Ready ?: return
+        val content = current.content as? CatalogContent.Grid ?: return
+        if (!content.grid.hasMore || current.loadingMore) return
+
+        _state.value = current.copy(loadingMore = true)
+        viewModelScope.launch {
+            val next = fetchGrid(content.grid.nextPage, _filter.value)
+            _state.value = CatalogUiState.Ready(
+                content = CatalogContent.Grid(
+                    CatalogGrid(
+                        items = content.grid.items + next.items,
+                        hasMore = next.hasMore,
+                        nextPage = next.nextPage,
+                    )
+                ),
+                filters = current.filters,
+                filter = current.filter,
+            )
+        }
+    }
+
+    /** Applies one filter group and reloads the grid from page 1. */
+    fun selectFilter(type: String, value: String?) {
+        _filter.value = when (type) {
+            "genre" -> _filter.value.copy(genre = value)
+            "country" -> _filter.value.copy(country = value)
+            "year" -> _filter.value.copy(year = value)
+            "sort" -> _filter.value.copy(sort = value)
+            "rate" -> _filter.value.copy(rate = value)
+            "classify" -> _filter.value.copy(classify = value)
+            else -> _filter.value
+        }
+        load()
+    }
+
+    private suspend fun buildContent(page: Int, filter: CatalogFilter): CatalogContent =
+        when (kind) {
+            // The movie page is a stack of rows, exactly like the website's /web/movie.
+            CatalogKind.MOVIES -> CatalogContent.Rows(repository.movieRows(host))
+            // The TV and animation catalogs are flat poster grids on the website.
+            CatalogKind.ANIMATED ->
+                CatalogContent.Grid(fetchGrid(page, filter))
+            CatalogKind.TV ->
+                CatalogContent.Grid(fetchGrid(page, filter))
+        }
+
+    private suspend fun fetchGrid(page: Int, filter: CatalogFilter): CatalogGrid =
+        when (kind) {
+            CatalogKind.ANIMATED -> repository.animatedGrid(host, page, filter)
+            else -> repository.seriesGrid(host, page, filter)
+        }
+
+    private suspend fun gridFilterConfig(): List<FilterGroup> {
+        val path = when (kind) {
+            CatalogKind.TV -> "/web/tv-series"
+            CatalogKind.ANIMATED -> "/web/animated-series"
+            // The movie channel carries no server-side filter config — same as the website.
+            CatalogKind.MOVIES -> return emptyList()
+        }
+        val configs = runCatching { repository.filterConfig(path) }.getOrNull().orEmpty()
+        return configs.firstOrNull()?.items.orEmpty()
+    }
+
+    companion object {
+        fun factory(
+            repository: MovieBoxRepository,
+            host: String,
+            kind: CatalogKind,
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer { CatalogViewModel(repository, host, kind) }
+        }
+    }
+}
