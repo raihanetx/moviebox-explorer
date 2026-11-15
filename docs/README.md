@@ -1098,7 +1098,8 @@ finite row set.
     count is used when H5 is shorter);
   - complete / missing counts per track;
   - risk badges;
-  - **More like this**;
+  - **More like this** — loaded from the API (`/subject/detail-rec`), not a local
+    list; tapping a related poster runs the same best-match mechanism;
   - **Play** button;
   - the **Info** sheet shows the raw API data — subject fields and `resource.seasons`
     exactly as returned.
@@ -1156,6 +1157,7 @@ API and produces a plain-text report.
 | Mobile dubs | dub list is present |
 | Mobile seasons | season/episode counts are present |
 | Detail path | full title resolution (all languages) |
+| Related | related-content API returns items |
 | Playback | real MP4 vs promo |
 | Home cache | cache file size |
 | Image CDN | poster URL responds |

@@ -588,6 +588,12 @@ class MovieBoxRepository(
                 "${info?.languages?.size ?: 0} languages, ${info?.referenceEpisodes ?: 0} episodes"
         }
 
+        check("Related") {
+            val items = api.detailRec(detailId, perPage = 5)
+            (if (items.isNotEmpty()) CheckStatus.PASS else CheckStatus.WARN) to
+                "${items.size} related items"
+        }
+
         check("Playback") {
             val data = api.play(detailPath, detailId, 1, 1)
             if (data == null) {
