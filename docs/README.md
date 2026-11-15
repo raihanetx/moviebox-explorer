@@ -113,7 +113,10 @@ MovieBox has **two backends**:
 The app uses both:
 
 - **H5 is the primary catalog and the only playback path.**
-- **Mobile is a fallback** for search, detail, dubs, staff, seasons and related titles.
+- **Normal title detail:** H5 first.
+- **High-risk / unlisted title detail:** mobile API first — the H5 record is often
+  partial or hidden, while the mobile record carries the full dub list.
+- **Mobile is also a fallback** for search, staff and seasons when H5 is empty.
 - Mobile `play-info` only returns a **promo clip**, so it is never used for playback.
 
 The three Gradle modules are:
@@ -762,7 +765,7 @@ The UI never calls `MovieBoxApi` or `MobileApi` directly. It calls the repositor
 |---|---|---|
 | Search | `POST /subject/search` | `mobile.searchSubjects()` |
 | Search page | `POST /subject/search` | `mobile.searchPage()` |
-| Detail | `GET /detail?detailPath=` | `mobile.detail(subjectId)` |
+| Detail | H5 first; if the record is `webHighRisk`/unlisted, use the mobile detail record | `mobile.detail(subjectId)` |
 | Dubs | `subject.dubs` from H5 detail, **merged** with the mobile list | `mobile.dubInfo(subjectId)` (always merged) |
 | Staff | `main.stars` from H5 detail | `mobile.staffInfo(subjectId)` |
 | Seasons | H5 resource, **merged** with the mobile season list when the H5 count is shorter | `mobile.seasonInfo(subjectId)` |

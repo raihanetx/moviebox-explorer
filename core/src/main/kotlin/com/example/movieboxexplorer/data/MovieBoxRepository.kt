@@ -278,8 +278,9 @@ class MovieBoxRepository(
         // makes every detail page feel slow for no benefit.
         val h5Main = api.detail(detailPath, subjectId)
         var main = h5Main
-        if (main?.subject == null) {
-            main = mobile.detail(subjectId)?.toTitleDetail()
+        if (main == null || main.subject?.webHighRisk == true) {
+            val mobileDetail = mobile.detail(subjectId)?.toTitleDetail()
+            if (mobileDetail?.subject != null) main = mobileDetail
         }
         val resolvedMain = main ?: return null
         var subject = resolvedMain.subject ?: return null
