@@ -1,6 +1,7 @@
 package com.example.movieboxexplorer.data
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /**
  * One rendition of an episode.
@@ -100,6 +101,8 @@ data class PlayData(
     val freeNum: Int = 0,
     val playConfig: PlayConfig = PlayConfig(),
     val accessStrategy: AccessStrategy? = null,
+    /** Older H5 responses put the renditions here instead of `streams`. */
+    val resource: JsonElement? = null,
 )
 
 /**

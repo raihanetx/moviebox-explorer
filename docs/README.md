@@ -430,6 +430,7 @@ app root, that is `../docs/`.
 1. DetailViewModel.play()
 2. repository.playEpisode(detailPath, subjectId, season, episode)
 3. MovieBoxApi.play(...) → GET /wefeed-h5api-bff/subject/play
+      (no Bearer token — X-Client-Token + Origin + Referer)
 4. PlayData contains MP4 and/or DASH renditions
 5. selectPlaybackSource() drops promo clips and picks the best rendition
 6. PlaybackHolder stores the URL + headers
@@ -629,6 +630,11 @@ x-vip-restrict: 0
 x-no-high-risk-restrict: 0
 x-source: moviebox
 ```
+
+`/subject/play` is **context-validated**: it does not need a Bearer token. The client
+sends `X-Client-Token`, `Origin` and `Referer`; the server returns real streams.
+Older H5 responses put the renditions under `resource` instead of `streams` — the
+client accepts both shapes.
 
 ### 6.2 `MobileApi` — the mobile BFF
 
@@ -851,7 +857,7 @@ as `""` (`subjectType`, `duration`, `imdbRatingCount`, `season`, `appointmentCnt
 | `TitleInfo` | `subject`, `stars`, `languages`, `referenceEpisodes`, `referenceSeasons`, `isForbidden`, `resource` | Everything the detail screen renders. |
 | `LanguageInfo` | `label`, `code`, `kind`, `isOriginal`, `episodes`, `seasons`, `resolutions`, `uploader`, `detailPath`, `subjectId`, `isPornographic` | One language track, resolved. |
 | `SeasonInfo` | `season`, `episodes`, `resolutions` | Per-season count used by the detail screen. |
-| `PlayData` | `streams`, `dash`, `hls`, `hasResource`, `vipLocked`, `limited`, `freeNum`, `playConfig`, `accessStrategy` | The H5 play response. |
+| `PlayData` | `streams`, `dash`, `hls`, `hasResource`, `vipLocked`, `limited`, `freeNum`, `playConfig`, `accessStrategy`, `resource` (legacy shape) | The H5 play response. |
 | `PlayStream` | `id`, `url`, `format`, `resolutions`, `quality`, `width`, `height`, `codec`, `bitrate`, `duration`, `signCookie`, `signHeaderKey`, `vipLocked` | One rendition. |
 | `BannerItem` | `id`, `title`, `image`, `url`, `subjectId`, `subjectType`, `subject` | One hero slide. |
 | `OperatingSection` | `type`, `position`, `title`, `subjects`, `banner`, `opId` | One home/catalog row. |

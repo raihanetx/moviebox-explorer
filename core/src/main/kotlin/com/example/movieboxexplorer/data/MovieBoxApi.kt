@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -236,7 +237,9 @@ class MovieBoxApi(
         episode: Int = 1,
     ): PlayData? {
         if (detailPath.isBlank()) return null
-        val token = ensureSession()
+        // /subject/play is context-validated: Origin + Referer + X-Client-Token.
+        // It does not need a Bearer token, so skip the session bootstrap.
+        val token: String? = null
 
         for (host in siteHosts) {
             val query = buildString {
@@ -259,9 +262,33 @@ class MovieBoxApi(
                 }.body<Envelope<PlayData>>()
             }.getOrNull() ?: continue
 
-            if (envelope.code == 0 && envelope.data != null) return envelope.data
+            if (envelope.code == 0 && envelope.data != null) {
+                return normalizePlayData(envelope.data)
+            }
         }
         return null
+    }
+
+    /**
+     * Older H5 play responses put the renditions under `resource` instead of
+     * `streams`. Accept both shapes.
+     */
+    private fun normalizePlayData(data: PlayData): PlayData {
+        if (data.streams.isNotEmpty()) return data
+        val streams = parseResourceStreams(data.resource)
+        return if (streams.isEmpty()) data else data.copy(streams = streams)
+    }
+
+    private fun parseResourceStreams(resource: JsonElement?): List<PlayStream> {
+        val array = when (resource) {
+            is JsonArray -> resource
+            is JsonObject -> resource["streams"] as? JsonArray
+                ?: resource["items"] as? JsonArray
+            else -> null
+        } ?: return emptyList()
+        return runCatching {
+            jsonFormat.decodeFromJsonElement(ListSerializer(PlayStream.serializer()), array)
+        }.getOrDefault(emptyList())
     }
 
     /**
