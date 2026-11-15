@@ -1158,6 +1158,7 @@ API and produces a plain-text report.
 | Mobile dubs | dub list is present |
 | Mobile seasons | season/episode counts are present |
 | Detail path | full title resolution (all languages) |
+| Language seasons | every track’s `S1:… S2:…` counts |
 | Related | related-content API returns items |
 | Playback | real MP4 vs promo |
 | Home cache | cache file size |

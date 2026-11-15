@@ -589,10 +589,25 @@ class MovieBoxRepository(
             .orEmpty()
             .ifBlank { "6983322689440465144" }
 
+        var detailInfo: TitleInfo? = null
         check("Detail path") {
             val info = loadTitle(detailPath, detailId)
+            detailInfo = info
             (if (info != null && info.languages.isNotEmpty()) CheckStatus.PASS else CheckStatus.FAIL) to
                 "${info?.languages?.size ?: 0} languages, ${info?.referenceEpisodes ?: 0} episodes"
+        }
+
+        check("Language seasons") {
+            val info = detailInfo
+            if (info == null) {
+                CheckStatus.FAIL to "no detail"
+            } else {
+                val text = info.languages.take(8).joinToString(" | ") { language ->
+                    "${language.label}: " +
+                        language.seasons.joinToString(",") { "S${it.season}:${it.episodes}" }
+                }
+                CheckStatus.PASS to text
+            }
         }
 
         check("Related") {

@@ -1041,8 +1041,9 @@ private fun EpisodePickerSheet(
             InfoSection("Season") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     seasons.forEach { number ->
+                        val count = language?.let { episodesIn(it, number) } ?: 0
                         PickerChip(
-                            text = "S$number",
+                            text = if (count > 0) "S$number ($count)" else "S$number",
                             selected = number == season,
                             onClick = { onSelectSeason(number) },
                         )
@@ -1052,7 +1053,7 @@ private fun EpisodePickerSheet(
         }
 
         if (episodes > 1) {
-            InfoSection("Episode") {
+            InfoSection("Episode · $episodes") {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
