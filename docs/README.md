@@ -324,6 +324,9 @@ moviebox-explorer/
 │   └── src/
 │       ├── main/kotlin/com/example/movieboxexplorer/data/
 │       │   ├── Models.kt            # SubjectBrief, Subject, DubVariant, Season, …
+│       │   ├── CatalogGroup.kt      # title/franchise group
+│       │   ├── CatalogGrouper.kt    # normalized grouping / duplicate merge
+│       │   ├── CatalogValidator.kt  # cross-validation report
 │       │   ├── Diagnostics.kt       # CheckStatus, CheckResult, DiagnosticsReport
 │       │   ├── MobileModels.kt      # mobile response models
 │       │   ├── MobileSigner.kt      # HMAC-MD5 request signer
@@ -362,6 +365,9 @@ app root, that is `../docs/`.
 | File | Responsibility |
 |---|---|
 | `Models.kt` | Shared JSON models. `LenientIntSerializer` accepts `""` for numeric fields. |
+| `CatalogGroup.kt` | A group of records for one title/franchise. |
+| `CatalogGrouper.kt` | Normalizes titles and groups duplicate/language variants. |
+| `CatalogValidator.kt` | Cross-validates a group and reports conflicts. |
 | `Diagnostics.kt` | Check statuses, individual results and the copyable text report. |
 | `MobileModels.kt` | Mobile-specific models (`MobileSearchPage`, `MobileDetail`, `MobileDub`, `MobileSeason`, …). |
 | `MobileSigner.kt` | Builds the mobile canonical request and the `x-tr-signature` / `x-client-token` headers. |
@@ -1393,6 +1399,8 @@ and “Hindi dub is missing” bugs. They run on the JVM, with no network.
 | `gradle :smoketest:run --args='"home-time"'` | Cold vs cached home load |
 | `gradle :smoketest:run --args='"home-parts"'` | Session / home / trending timings |
 | `gradle :smoketest:run --args='"diagnostics"'` | Full H5 + mobile + playback report |
+| `gradle :smoketest:run --args='"validate-catalog"'` | Group the whole catalog and validate a sample |
+| `gradle :smoketest:run --args='"validate-title" "Black Clover"'` | Group and validate one title |
 
 ### 12.4 Content coverage baseline
 
@@ -1487,6 +1495,44 @@ GitHub Actions is configured in `.github/workflows/android-ci.yml`. On `ubuntu-l
 
 The workflow does not fail on region-specific mobile checks — the report is the
 deliverable, and the summary shows which layer failed.
+
+### 12.6 Catalog validation pipeline
+
+The catalogue is a scraped aggregator, so the same title can appear as several
+records. `CatalogGrouper` and `CatalogValidator` provide a scalable way to detect
+this without manual per-title work.
+
+1. **`CatalogGrouper`** normalizes titles (case, apostrophes, brackets, `S1-S9`,
+   `Season N`, `Vol N`, `Part N`) and groups records by franchise/base title.
+3. **`CatalogValidator`** loads each record in a group and checks:
+   - whether there is a detail record;
+   - whether there are language tracks;
+   - whether there are episodes;
+   - whether languages disagree about a season’s episode count.
+4. **`validate-catalog`** runs this over the home/movies/TV/animation catalog and
+   prints a summary.
+5. **`validate-title "Black Clover"`** groups and validates one title.
+
+Live baseline:
+
+```text
+records=772 groups=762
+validation: groups=762 records=772 clean=9 warnings=1
+```
+
+Targeted examples:
+
+```text
+Black Clover: 8 records, 30 languages, 291 episodes
+  issues: S1 count conflict: 170/170/…/52/…/14/1; S2 count conflict: 7/5/4/2/1
+
+Baki: 13 records, 58 languages, 80 episodes
+  issues: S1 count conflict: 39/26/12/24/13/…; S2 count conflict: 13/27/5/12/…
+```
+
+The validator **flags** the conflicts; it does not silently show a wrong count.
+It cannot make the source data correct, but it prevents the app from pretending
+that inconsistent records are one clean track.
 
 ---
 
@@ -1781,6 +1827,7 @@ The `get` response may already contain `dubs`; if it does, `dub-info` is not nee
 | Split seasons | Merged by season number; mobile season-info is used when H5 is shorter |
 | Partial dub lists | H5 `dubs` are merged with the mobile `dub-info` list |
 | Device test | No emulator was available in this environment; the UI was compiled, not launched |
+| Catalog data | Scraped aggregator; `CatalogValidator` flags conflicts but cannot fix the source records |
 | Downloads | MP4 only (DASH not supported); signed URLs expire after a few hours |
 | Legal | Third-party catalogue, no public API, no license |
 
@@ -1805,6 +1852,7 @@ All paths below are relative to the app root, `moviebox-explorer/`.
 | Change season-number normalization | `core/.../SeasonMath.normalizeLanguages()` |
 | Change downloads | `app/.../data/Downloads.kt` + `ui/DownloadsScreen.kt` + `DetailViewModel.download()` |
 | Change search result order | `core/.../SearchRank.kt` |
+| Change catalog grouping / validation | `core/.../CatalogGrouper.kt` + `CatalogValidator.kt` |
 | Change poster best-match scoring | `core/.../SearchRank.bestMatch()` + `MovieBoxRepository.resolveBestMatch()` |
 | Change risk gating | `core/.../RiskPolicy.kt` + `ui/AdultGate.kt` |
 | Change diagnostics checks | `core/.../MovieBoxRepository.diagnostics()` + `ui/DiagnosticsScreen.kt` |

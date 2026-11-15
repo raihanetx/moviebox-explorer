@@ -1,7 +1,9 @@
 package com.example.movieboxexplorer.smoke
 
 import com.example.movieboxexplorer.data.CatalogFilter
+import com.example.movieboxexplorer.data.CatalogGrouper
 import com.example.movieboxexplorer.data.CatalogRow
+import com.example.movieboxexplorer.data.CatalogValidator
 import com.example.movieboxexplorer.data.MovieBoxApi
 import com.example.movieboxexplorer.data.MobileApi
 import com.example.movieboxexplorer.data.MovieBoxRepository
@@ -253,6 +255,59 @@ fun main(args: Array<String>) = runBlocking {
         failures.take(15).forEach { println("  FAIL $it") }
         if (zeroEpisodeTitles.isNotEmpty()) println("  zero episodes: ${zeroEpisodeTitles.joinToString(", ")}")
         if (noSeasonTitles.isNotEmpty()) println("  no seasons: ${noSeasonTitles.joinToString(", ")}")
+        repo.close()
+        return@runBlocking
+    }
+
+    if (keyword == "validate-title") {
+        val title = args.getOrNull(1) ?: "Black Clover"
+        val repo = MovieBoxRepository(MovieBoxApi())
+        val results = repo.search(title, subjectType = 2)
+        val groups = CatalogGrouper.group(results)
+        val group = groups.firstOrNull { it.title.contains(title, ignoreCase = true) }
+            ?: groups.firstOrNull()
+
+        if (group == null) {
+            println("no group for $title")
+            repo.close()
+            return@runBlocking
+        }
+
+        val validation = CatalogValidator.validateGroup(group, repo)
+        println("group: ${group.title} | records=${group.records.size}")
+        println("languages=${validation.languages} seasons=${validation.seasons} eps=${validation.episodes}")
+        println("issues=${validation.issues.joinToString("; ").ifBlank { "none" }}")
+        repo.close()
+        return@runBlocking
+    }
+
+    if (keyword == "validate-catalog") {
+        val repo = MovieBoxRepository(MovieBoxApi())
+        val host = "themoviebox.xyz"
+        val records = buildList {
+            addAll(repo.homeRows(host).operatingList.flatMap { it.subjects })
+            addAll(repo.movieRows(host).flatMap { it.items })
+            addAll(repo.seriesGrid(host).items)
+            addAll(repo.animatedGrid(host).items)
+        }.distinctBy { it.subjectId }
+
+        val groups = CatalogGrouper.group(records)
+        println("records=${records.size} groups=${groups.size}")
+        groups.take(10).forEach {
+            println("  ${it.title} <- ${it.records.size} records")
+        }
+
+        val summary = CatalogValidator.validateAll(groups, repo, limit = 10)
+        println(
+            "validation: groups=${summary.groups} records=${summary.records} " +
+                "clean=${summary.clean} warnings=${summary.warnings}",
+        )
+        summary.results.forEach { result ->
+            println(
+                "  ${result.title}: languages=${result.languages} seasons=${result.seasons} " +
+                    "eps=${result.episodes} issues=${result.issues.joinToString("; ")}",
+            )
+        }
         repo.close()
         return@runBlocking
     }
