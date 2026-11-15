@@ -404,6 +404,7 @@ class MovieBoxRepository(
             referenceEpisodes = reference,
             referenceSeasons = referenceSeasons,
             isForbidden = resolvedMain.isForbid,
+            resource = mainResource,
         )
     }
 
@@ -508,7 +509,10 @@ class MovieBoxRepository(
                 "token ${token?.length ?: 0} chars"
         }
 
-        val mobileItems = mobile.searchSubjects("Black Clover", perPage = 5)
+        val mobileItems = SearchRank.rank(
+            mobile.searchSubjects("Black Clover", perPage = 5),
+            "Black Clover",
+        )
         check("Mobile search") {
             (if (mobileItems.isNotEmpty()) CheckStatus.PASS else CheckStatus.FAIL) to
                 "${mobileItems.size} results, first=${mobileItems.firstOrNull()?.title.orEmpty()}"

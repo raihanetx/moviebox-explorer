@@ -105,6 +105,8 @@ data class TitleInfo(
     val referenceSeasons: Int,
     /** `isForbid` — the record exists but must not be played. */
     val isForbidden: Boolean = false,
+    /** The raw resource block from the detail record, shown in the info sheet. */
+    val resource: Resource? = null,
 ) {
     val isMovie: Boolean get() = subject.subjectType == 1
 

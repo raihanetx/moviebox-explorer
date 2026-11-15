@@ -8,8 +8,8 @@ does not publish a public API and does not license its content. Read the
 [legal note](#17-legal--ethical-note) before you ship or publish anything.
 
 > **Paths in this guide:** all `app/…`, `core/…` and `smoketest/…` paths are relative to
-> the app root (the parent folder of this `docs/` folder). This guide lives in
-> `docs/README.md`; the UI design note is `docs/HOME_UI_REDESIGN.md`.
+> the app root, `moviebox-explorer/`. This guide lives in `docs/README.md`; the UI design
+> note is `docs/HOME_UI_REDESIGN.md`.
 
 ---
 
@@ -348,11 +348,11 @@ moviebox-explorer/
 ├── .github/workflows/android-ci.yml
 ├── dist/
 │   └── app-debug.apk           # built debug APK
-└── README.md                   # short pointer to docs/README.md
+└── README.md                   # short pointer to ../docs/README.md
 ```
 
-This guide lives in `docs/README.md` (this file) and `docs/HOME_UI_REDESIGN.md`.
-The app source is the parent folder of this `docs/` folder.
+The documentation lives in `docs/` — this file and `docs/HOME_UI_REDESIGN.md`. From the
+app root, that is `../docs/`.
 
 ### What each data-layer file does
 
@@ -558,17 +558,20 @@ Content-Type: application/json
 The site rotates mirrors. `MovieBoxApi.DEFAULT_SITE_HOSTS`:
 
 ```text
+themoviebox.xyz
 mzfi.me
 netfilm.world
-themoviebox.xyz
 movieboxonline.net
 moviebox.co
 moviebox.ph
 ```
 
-`detail()` and `play()` try each host with a matching `Referer`. A record is often
-**host-scoped**: the same slug can return `404` on `themoviebox.xyz` and `200` on
-`mzfi.me`.
+`themoviebox.xyz` is the canonical 36-section host. `mzfi.me` and `netfilm.world`
+serve a reduced build (19 sections). `detail()` and `play()` try each host with a
+matching `Referer`; a record is often **host-scoped** — the same slug can return `404`
+on `themoviebox.xyz` and `200` on `mzfi.me`. `movie-box.co` appears in the mobile
+`detailUrl`, but the H5 detail endpoint returns `404` there; `mzfi.me` is the working
+mirror for the tested titles.
 
 #### `X-No-High-Risk-Restrict` — listing only
 
@@ -842,7 +845,7 @@ as `""` (`subjectType`, `duration`, `imdbRatingCount`, `season`, `appointmentCnt
 | `Season` | `se`, `maxEp`, `allEp`, `resolutions: List<Resolution>` | `maxEp` is the highest episode number; `allEp` is the raw list. |
 | `Resolution` | `resolution`, `epNum` | Quality and how many episodes exist at it. |
 | `Resource` | `seasons`, `source`, `uploadBy` | The episode structure. |
-| `TitleInfo` | `subject`, `stars`, `languages`, `referenceEpisodes`, `referenceSeasons`, `isForbidden` | Everything the detail screen renders. |
+| `TitleInfo` | `subject`, `stars`, `languages`, `referenceEpisodes`, `referenceSeasons`, `isForbidden`, `resource` | Everything the detail screen renders. |
 | `LanguageInfo` | `label`, `code`, `kind`, `isOriginal`, `episodes`, `seasons`, `resolutions`, `uploader`, `detailPath`, `subjectId`, `isPornographic` | One language track, resolved. |
 | `SeasonInfo` | `season`, `episodes`, `resolutions` | Per-season count used by the detail screen. |
 | `PlayData` | `streams`, `dash`, `hls`, `hasResource`, `vipLocked`, `limited`, `freeNum`, `playConfig`, `accessStrategy` | The H5 play response. |
@@ -1086,7 +1089,9 @@ finite row set.
   - complete / missing counts per track;
   - risk badges;
   - **More like this**;
-  - **Play** button.
+  - **Play** button;
+  - the **Info** sheet shows the raw API data — subject fields and `resource.seasons`
+    exactly as returned.
 - If a title is adult and the setting is off, it shows `AdultTitleBlockedDialog`.
 - Play resolves the selected track's own subject, not the parent.
 

@@ -565,9 +565,9 @@ class MovieBoxApi(
 
         /** Mirror hosts of the site. They rotate from time to time, hence the fallback list. */
         val DEFAULT_SITE_HOSTS = listOf(
+            "themoviebox.xyz",
             "mzfi.me",
             "netfilm.world",
-            "themoviebox.xyz",
             "movieboxonline.net",
             "moviebox.co",
             "moviebox.ph",

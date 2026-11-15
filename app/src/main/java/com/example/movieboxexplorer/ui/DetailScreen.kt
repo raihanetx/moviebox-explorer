@@ -730,6 +730,63 @@ private fun InfoContent(info: TitleInfo, onClose: () -> Unit) {
                 }
             }
         }
+
+        InfoSection("Raw data") {
+            val subject = info.subject
+            RawLine("id", subject.subjectId)
+            RawLine("type", subject.subjectType.toString())
+            RawLine("releaseDate", subject.releaseDate)
+            RawLine("duration", subject.duration.toString())
+            RawLine("country", subject.countryName)
+            RawLine("imdb", "${subject.imdbRatingValue} (${subject.imdbRatingCount})")
+            RawLine("genre", subject.genre)
+            RawLine("detailPath", subject.detailPath)
+            RawLine("webHighRisk", subject.webHighRisk.toString())
+            RawLine("isPornographic", subject.isPornographic.toString())
+            RawLine("subtitles", subject.subtitles)
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "resource.seasons",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextTertiary,
+                fontWeight = FontWeight.Bold,
+            )
+            val seasons = info.resource?.seasons.orEmpty()
+            if (seasons.isEmpty()) {
+                RawLine("resource", "not provided")
+            } else {
+                seasons.forEach { season ->
+                    RawLine(
+                        label = "S${season.se}",
+                        value = "maxEp=${season.maxEp}, allEp=${season.allEp.ifBlank { "—" }}, " +
+                            "resolutions=${season.resolutions.joinToString { "${it.resolution}:${it.epNum}" }}",
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RawLine(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(110.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = TextTertiary,
+        )
+        Text(
+            text = value.ifBlank { "—" },
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelSmall,
+            color = TextSecondary,
+        )
     }
 }
 
