@@ -1097,6 +1097,9 @@ finite row set.
   - hero shows the title’s cover artwork;
   - **Season** picker and episode list (split seasons are merged; the mobile season
     count is used when H5 is shorter);
+  - the season chips show the episode count (`S1 (170)`, `S2 (7)`);
+  - the episode section is **scrollable** and its header shows the total
+    (`Episode · 170`);
   - complete / missing counts per track;
   - risk badges;
   - **More like this** — loaded from the API (`/subject/detail-rec`), not a local
@@ -1605,6 +1608,8 @@ gradle :app:assembleDebug
   (4) is replaced by the mobile count (24/48).
 - If the mobile API is region-blocked, the H5-only count may still be low. Use an
   allowed-region IP to get the full count.
+- If only a few episode chips are visible, the picker is scrollable — scroll down. The
+  header shows the total (`Episode · N`).
 
 ### 13.16 A dub is missing from the language list
 
