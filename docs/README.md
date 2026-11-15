@@ -804,6 +804,10 @@ The logic lives in `SeasonMath` (`seasonsOf`, `mergeResources`, `mergeResolution
 it can be tested on the JVM. `SeasonMathTest` covers split seasons, duplicate seasons,
 combined records, `allEp` unions, H5+mobile merges and resolution merges.
 
+`SeasonMath.normalizeLanguages` also maps a dub’s season number onto the original
+track’s season number when the episode count matches. That fixes records like
+`Baki Hanma [English]` reporting `S5:12` while the original reports `S1:12`.
+
 #### Main methods
 
 | Method | What it does |
@@ -1103,6 +1107,8 @@ finite row set.
   - hero shows the title’s cover artwork;
   - **Season** picker and episode list (split seasons are merged; the mobile season
     count is used when H5 is shorter);
+  - season numbers are normalized against the original track — a dub that reports
+    `S5:12` is mapped to the original’s `S1` when S1 has 12 episodes;
   - the season chips show the episode count (`S1 (170)`, `S2 (7)`);
   - the episode section is **scrollable** and its header shows the total
     (`Episode · 170`);
@@ -1796,6 +1802,7 @@ All paths below are relative to the app root, `moviebox-explorer/`.
 | Add a mobile endpoint | `MobileApi.kt` + `MobileModels.kt` |
 | Change the fallback order | `MovieBoxRepository.kt` |
 | Change playback selection | `core/.../Playback.kt` |
+| Change season-number normalization | `core/.../SeasonMath.normalizeLanguages()` |
 | Change downloads | `app/.../data/Downloads.kt` + `ui/DownloadsScreen.kt` + `DetailViewModel.download()` |
 | Change search result order | `core/.../SearchRank.kt` |
 | Change poster best-match scoring | `core/.../SearchRank.bestMatch()` + `MovieBoxRepository.resolveBestMatch()` |

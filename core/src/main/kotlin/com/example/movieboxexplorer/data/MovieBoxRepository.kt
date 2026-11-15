@@ -403,18 +403,20 @@ class MovieBoxRepository(
             }.awaitAll()
         }
 
+        val normalizedLanguages = SeasonMath.normalizeLanguages(ownSeasons, languages)
+
         val reference = maxOf(
             referenceEpisodeCount,
-            languages.maxOfOrNull { it.episodes } ?: 0,
+            normalizedLanguages.maxOfOrNull { it.episodes } ?: 0,
         )
         val referenceSeasons = maxOf(
             ownSeasons.count { it.episodes > 0 },
-            languages.maxOfOrNull { it.seasonCount } ?: 0,
+            normalizedLanguages.maxOfOrNull { it.seasonCount } ?: 0,
         )
 
         // A title without language variants — most movies — is its own track, so the
         // picker still has something to play.
-        val tracks = languages.ifEmpty {
+        val tracks = normalizedLanguages.ifEmpty {
             listOf(
                 LanguageInfo(
                     label = "Original",

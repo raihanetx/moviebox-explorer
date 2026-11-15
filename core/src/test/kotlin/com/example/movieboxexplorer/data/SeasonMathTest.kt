@@ -145,4 +145,74 @@ class SeasonMathTest {
         assertEquals(10, result.single { it.resolution == 720 }.epNum)
         assertTrue(result.first().resolution >= result.last().resolution)
     }
+
+    private fun language(
+        label: String,
+        code: String,
+        seasons: List<SeasonInfo>,
+        original: Boolean = false,
+    ) = LanguageInfo(
+        label = label,
+        code = code,
+        kind = "Dub",
+        isOriginal = original,
+        episodes = seasons.sumOf { it.episodes },
+        seasons = seasons,
+        resolutions = emptyList(),
+        uploader = "",
+        detailPath = "",
+        subjectId = label.hashCode().toString(),
+    )
+
+    @Test
+    fun `a dub season is mapped to the reference season with the same episode count`() {
+        val reference = listOf(
+            SeasonInfo(1, 12, emptyList()),
+            SeasonInfo(2, 27, emptyList()),
+        )
+        val english = language("English dub", "en", listOf(SeasonInfo(5, 12, emptyList())))
+
+        val normalized = SeasonMath.normalizeLanguages(reference, listOf(english)).single()
+
+        assertEquals(1, normalized.seasons.single().season)
+        assertEquals(12, normalized.episodes)
+    }
+
+    @Test
+    fun `an exact season number wins over episode-count matching`() {
+        val reference = listOf(
+            SeasonInfo(1, 12, emptyList()),
+            SeasonInfo(2, 7, emptyList()),
+        )
+        val french = language("French dub", "fr", listOf(SeasonInfo(2, 4, emptyList())))
+
+        val normalized = SeasonMath.normalizeLanguages(reference, listOf(french)).single()
+
+        assertEquals(2, normalized.seasons.single().season)
+        assertEquals(4, normalized.episodes)
+    }
+
+    @Test
+    fun `an unknown season is kept as-is`() {
+        val reference = listOf(
+            SeasonInfo(1, 12, emptyList()),
+            SeasonInfo(2, 27, emptyList()),
+        )
+        val dub = language("Arabic dub", "ar", listOf(SeasonInfo(3, 13, emptyList())))
+
+        val normalized = SeasonMath.normalizeLanguages(reference, listOf(dub)).single()
+
+        assertEquals(3, normalized.seasons.single().season)
+        assertEquals(13, normalized.episodes)
+    }
+
+    @Test
+    fun `the original track is never remapped`() {
+        val reference = listOf(SeasonInfo(1, 12, emptyList()))
+        val original = language("Original Audio", "ja", listOf(SeasonInfo(5, 12, emptyList())), original = true)
+
+        val normalized = SeasonMath.normalizeLanguages(reference, listOf(original)).single()
+
+        assertEquals(5, normalized.seasons.single().season)
+    }
 }

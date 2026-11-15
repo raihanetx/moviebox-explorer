@@ -124,4 +124,64 @@ object SeasonMath {
             .groupBy { it.resolution }
             .map { (resolution, entries) -> Resolution(resolution, entries.sumOf { it.epNum }) }
             .sortedByDescending { it.resolution }
+
+    /**
+     * Map each language's season numbers onto the reference track's season numbers.
+     *
+     * Some dubs use a different season number for the same upload — for example
+     * `Baki Hanma [English]` reports `S5:12` while the original reports `S1:12`.
+     * If the episode count matches a reference season, the dub is mapped to that
+     * season. Exact season numbers still win; unknown counts are kept as-is.
+     */
+    fun normalizeLanguages(
+        reference: List<SeasonInfo>,
+        languages: List<LanguageInfo>,
+    ): List<LanguageInfo> {
+        if (reference.isEmpty()) return languages
+        return languages.map { language ->
+            if (language.isOriginal) {
+                language
+            } else {
+                val seasons = mapLanguageSeasons(language.seasons, reference)
+                language.copy(
+                    seasons = seasons,
+                    episodes = seasons.sumOf { it.episodes },
+                )
+            }
+        }
+    }
+
+    private fun mapLanguageSeasons(
+        languageSeasons: List<SeasonInfo>,
+        reference: List<SeasonInfo>,
+    ): List<SeasonInfo> {
+        val grouped = LinkedHashMap<Int, MutableList<SeasonInfo>>()
+        languageSeasons.forEach { season ->
+            val target = reference.firstOrNull { it.season == season.season }
+                ?: reference.firstOrNull {
+                    it.episodes > 0 && it.episodes == season.episodes
+                }
+            val key = target?.season ?: season.season
+            grouped.getOrPut(key) { mutableListOf() }.add(season)
+        }
+
+        return grouped.entries
+            .sortedBy { it.key }
+            .map { (seasonNumber, entries) ->
+                val episodes = when {
+                    entries.size == 1 -> entries.first().episodes
+                    entries.all { it.episodes == entries.first().episodes } ->
+                        entries.first().episodes
+                    else -> entries.sumOf { it.episodes }
+                }
+                val resolutions = entries
+                    .flatMap { it.resolutions }
+                    .groupBy { it.resolution }
+                    .map { (resolution, list) ->
+                        Resolution(resolution, list.maxOf { it.epNum })
+                    }
+                    .sortedByDescending { it.resolution }
+                SeasonInfo(seasonNumber, episodes, resolutions)
+            }
+    }
 }
