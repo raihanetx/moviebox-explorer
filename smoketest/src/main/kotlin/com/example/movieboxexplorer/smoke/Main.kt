@@ -104,11 +104,22 @@ fun main(args: Array<String>) = runBlocking {
     }
 
     if (keyword == "best") {
-        val title = args.getOrNull(1) ?: "Black Torch"
         val repo = MovieBoxRepository(MovieBoxApi())
-        val fallback = SubjectBrief(subjectId = "", title = title)
-        val best = repo.resolveBestMatch(title, fallback)
-        println("best match: ${best.title} | id=${best.subjectId} | path=${best.detailPath}")
+        val titles = listOf(
+            "Black Clover",
+            "Black Clover [Hindi]",
+            "Black Torch",
+            "Black Torch [Hindi]",
+            "Frieren",
+            "Frieren [Hindi]",
+            "Spy x Family",
+            "Spy x Family [Hindi]",
+        )
+        for (title in titles) {
+            val fallback = SubjectBrief(subjectId = "", title = title)
+            val best = repo.resolveBestMatch(title, fallback)
+            println("$title -> ${best.title} | id=${best.subjectId} | path=${best.detailPath}")
+        }
         repo.close()
         return@runBlocking
     }

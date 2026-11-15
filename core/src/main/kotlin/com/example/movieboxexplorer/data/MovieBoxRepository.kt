@@ -49,9 +49,16 @@ class MovieBoxRepository(
     suspend fun resolveBestMatch(title: String, fallback: SubjectBrief): SubjectBrief {
         if (title.isBlank()) return fallback
 
-        val candidates = runCatching {
+        val mobileCandidates = runCatching {
             mobile.searchSubjects(title, perPage = 10)
         }.getOrDefault(emptyList())
+
+        // If the mobile API is blocked, use the H5 search results instead. The scoring
+        // works on both shapes.
+        val candidates = mobileCandidates.ifEmpty {
+            runCatching { api.search(title, page = 1, perPage = 10, subjectType = 2).items }
+                .getOrDefault(emptyList())
+        }
 
         val best = SearchRank.bestMatch(candidates, title) ?: return fallback
         if (best.subjectId.isBlank() || best.subjectId == fallback.subjectId) return fallback

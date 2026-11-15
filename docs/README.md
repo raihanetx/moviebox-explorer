@@ -1085,8 +1085,9 @@ finite row set.
 - Before opening, `resolveBestMatch(title)` searches the mobile API and scores the
   candidates: exact title first, then prefix/substring; penalises re-edit, recap,
   compilation, summary, mini-anime, special, OVA, movie cut and “part”; prefers entries
-  with a resource, a rating and `subjectType=2`. If no better match is found, it opens
-  the original poster.
+  with a resource, a rating and `subjectType=2`. If the mobile search is blocked, the
+  H5 search is used as the candidate source. If no better match is found, it opens the
+  original poster.
 - Shows:
   - poster, title, year, rating, genre, country;
   - synopsis;
