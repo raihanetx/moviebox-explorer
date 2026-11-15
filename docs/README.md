@@ -1086,6 +1086,8 @@ finite row set.
   - poster, title, year, rating, genre, country;
   - synopsis;
   - **Audio language** picker (original track + English/Hindi dubs only — no subtitles);
+  - **Language coverage** report: Original / English / Hindi with `FULL`, `PARTIAL`,
+    `NOT AVAILABLE`, episodes/reference, missing counts and seasons;
   - hero shows the title’s cover artwork;
   - **Season** picker and episode list (split seasons are merged; the mobile season
     count is used when H5 is shorter);
@@ -1097,6 +1099,15 @@ finite row set.
     exactly as returned.
 - If a title is adult and the setting is off, it shows `AdultTitleBlockedDialog`.
 - Play resolves the selected track's own subject, not the parent.
+
+Coverage example:
+
+```text
+LANGUAGE COVERAGE
+Original Audio   FULL          25/25 episodes   S1:13 S2:12
+Hindi dub        PARTIAL       24/25 · 1 missing
+English dub      FULL          25/25 episodes   S1:13 S2:12
+```
 
 #### Ranking
 

@@ -701,6 +701,24 @@ private fun InfoContent(info: TitleInfo, onClose: () -> Unit) {
             }
         }
 
+        InfoSection("Language coverage") {
+            if (info.languages.isEmpty()) {
+                Text(
+                    text = "No language data",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                )
+            } else {
+                info.languages.forEach { language ->
+                    LanguageCoverageRow(
+                        language = language,
+                        referenceEpisodes = info.referenceEpisodes,
+                        referenceSeasons = info.referenceSeasons,
+                    )
+                }
+            }
+        }
+
         InfoSection("Quality") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 qualities.forEach { resolution ->
@@ -764,6 +782,73 @@ private fun InfoContent(info: TitleInfo, onClose: () -> Unit) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LanguageCoverageRow(
+    language: LanguageInfo,
+    referenceEpisodes: Int,
+    referenceSeasons: Int,
+) {
+    val missingEpisodes = (referenceEpisodes - language.episodes).coerceAtLeast(0)
+    val missingSeasons = (referenceSeasons - language.seasonCount).coerceAtLeast(0)
+
+    val status = when {
+        language.episodes == 0 -> "NOT AVAILABLE"
+        missingEpisodes == 0 && missingSeasons == 0 -> "FULL"
+        else -> "PARTIAL"
+    }
+    val statusColor = when (status) {
+        "FULL" -> Color(0xFF22C55E)
+        "PARTIAL" -> Color(0xFFF59E0B)
+        else -> Color(0xFFEF4444)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = language.label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+            )
+            Text(
+                text = status,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = statusColor,
+            )
+        }
+        val episodesText = if (referenceEpisodes > 0) {
+            "${language.episodes}/$referenceEpisodes episodes"
+        } else {
+            "${language.episodes} episodes"
+        }
+        Text(
+            text = buildString {
+                append(episodesText)
+                if (missingEpisodes > 0) append(" · $missingEpisodes missing")
+                if (missingSeasons > 0) append(" · $missingSeasons season(s) missing")
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = TextSecondary,
+        )
+        val seasons = language.seasons
+            .filter { it.episodes > 0 }
+            .joinToString(" ") { "S${it.season}:${it.episodes}" }
+        if (seasons.isNotBlank()) {
+            Text(
+                text = seasons,
+                style = MaterialTheme.typography.labelSmall,
+                color = TextTertiary,
+            )
         }
     }
 }
