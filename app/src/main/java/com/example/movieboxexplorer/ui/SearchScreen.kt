@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,9 +19,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
@@ -145,17 +148,19 @@ fun SearchScreen(
             )
 
             if (suggestions.isNotEmpty() && query.isNotBlank()) {
+                // Cap the panel so it never hides the results list below it.
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .heightIn(max = 232.dp),
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 2.dp,
                     shadowElevation = 2.dp,
                 ) {
-                    Column {
-                        suggestions.take(8).forEach { word ->
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        suggestions.take(5).forEach { word ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()

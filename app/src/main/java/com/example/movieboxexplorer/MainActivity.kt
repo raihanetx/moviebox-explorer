@@ -148,13 +148,23 @@ private fun MovieBoxApp() {
         val navController = rememberNavController()
         val openDetailScope = rememberCoroutineScope()
         val openDetail: (SubjectBrief) -> Unit = { subject ->
-            openDetailScope.launch {
-                val best = runCatching {
-                    repository.resolveBestMatch(subject.title, subject)
-                }.getOrDefault(subject)
+            // Navigate to the exact record the user tapped. Re-ranking by keyword
+            // would silently swap in a different title (the "tap Black Clover,
+            // open another show" bug). Best-match is only used when the tapped
+            // record cannot be opened at all.
+            if (subject.detailPath.isNotBlank() && subject.subjectId.isNotBlank()) {
                 navController.navigate(
-                    "detail/${Uri.encode(best.detailPath)}/${best.subjectId}",
+                    "detail/${Uri.encode(subject.detailPath)}/${subject.subjectId}",
                 )
+            } else {
+                openDetailScope.launch {
+                    val best = runCatching {
+                        repository.resolveBestMatch(subject.title, subject)
+                    }.getOrDefault(subject)
+                    navController.navigate(
+                        "detail/${Uri.encode(best.detailPath)}/${best.subjectId}",
+                    )
+                }
             }
         }
         val backStack by navController.currentBackStackEntryAsState()

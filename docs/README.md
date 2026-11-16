@@ -423,7 +423,8 @@ app root, that is `../docs/`.
 2. MovieBoxApi.home(host) → GET /wefeed-h5api-bff/home?host=…
 3. MovieBoxApi.trending(page=0) → Suggestions row
 4. UI renders hero + platform strip + rails
-5. User taps a poster → `resolveBestMatch(title)` picks the best version → DetailViewModel
+5. User taps a poster → the tapped record opens directly; `resolveBestMatch(title)`
+   is only used when the tapped record has no usable `detailPath`/`subjectId` → DetailViewModel
 6. repository.loadTitle(detailPath, subjectId)
 7. MovieBoxApi.detail(...) → H5 record
 8. For every dub: MovieBoxApi.detail(...) or MobileApi.detail(...)
@@ -1092,18 +1093,19 @@ finite row set.
 - Minimum 2 characters.
 - Type tabs from the API `counts` (`All`, `Series`, `Movies`, `Music`).
 - 28 items per page; infinite scroll.
-- Suggestions come from `POST /subject/search-suggest`.
-- Tapping a result opens the detail route.
+- Suggestions come from `POST /subject/search-suggest`. The panel is capped at
+  five entries / 232 dp, is scrollable, and is cleared once the search is committed,
+  so it never pushes the results list off-screen.
+- Tapping a result opens that exact record. `resolveBestMatch(title)` is only used
+  as a fallback when the tapped record has no usable `detailPath`/`subjectId`;
+  tapping "Black Clover" always opens "Black Clover".
 
 #### Detail
 
 - Loads `repository.loadTitle(detailPath, subjectId)`.
-- Before opening, `resolveBestMatch(title)` searches the mobile API and scores the
-  candidates: exact title first, then prefix/substring; penalises re-edit, recap,
-  compilation, summary, mini-anime, special, OVA, movie cut and “part”; prefers entries
-  with a resource, a rating and `subjectType=2`. If the mobile search is blocked, the
-  H5 search is used as the candidate source. If no better match is found, it opens the
-  original poster.
+- It opens the exact record the user tapped. `resolveBestMatch(title)` is kept only as
+  a fallback when a tapped record has no usable `detailPath`/`subjectId` — re-ranking
+  on every tap used to send users to a different title than the one they clicked.
 - Shows:
   - poster, title, year, rating, genre, country;
   - synopsis;
@@ -1121,7 +1123,7 @@ finite row set.
   - complete / missing counts per track;
   - risk badges;
   - **More like this** — loaded from the API (`/subject/detail-rec`), not a local
-    list; tapping a related poster runs the same best-match mechanism;
+    list; tapping a related poster opens that exact record (same fallback rule as above);
   - **Play** button;
   - the **Info** sheet shows the raw API data — subject fields and `resource.seasons`
     exactly as returned.
@@ -1853,7 +1855,7 @@ All paths below are relative to the app root, `moviebox-explorer/`.
 | Change downloads | `app/.../data/Downloads.kt` + `ui/DownloadsScreen.kt` + `DetailViewModel.download()` |
 | Change search result order | `core/.../SearchRank.kt` |
 | Change catalog grouping / validation | `core/.../CatalogGrouper.kt` + `CatalogValidator.kt` |
-| Change poster best-match scoring | `core/.../SearchRank.bestMatch()` + `MovieBoxRepository.resolveBestMatch()` |
+| Change poster best-match fallback | `core/.../SearchRank.bestMatch()` + `MovieBoxRepository.resolveBestMatch()` |
 | Change risk gating | `core/.../RiskPolicy.kt` + `ui/AdultGate.kt` |
 | Change diagnostics checks | `core/.../MovieBoxRepository.diagnostics()` + `ui/DiagnosticsScreen.kt` |
 | Change automated emulator test | `app/src/androidTest/.../DiagnosticsInstrumentedTest.kt` + `.github/workflows/android-ci.yml` |

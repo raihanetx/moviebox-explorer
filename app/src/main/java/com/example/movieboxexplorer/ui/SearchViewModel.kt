@@ -88,6 +88,8 @@ class SearchViewModel(private val repository: MovieBoxRepository) : ViewModel() 
         val keyword = _query.value.trim()
         if (keyword.length < 2) return
         rememberRecent(keyword)
+        suggestJob?.cancel()
+        _suggestions.value = emptyList()
         searchJob?.cancel()
         searchJob = viewModelScope.launch { runSearch(reset = true) }
     }
@@ -99,6 +101,7 @@ class SearchViewModel(private val repository: MovieBoxRepository) : ViewModel() 
         _query.value = keyword
         rememberRecent(keyword)
         suggestJob?.cancel()
+        _suggestions.value = emptyList()
         searchJob?.cancel()
         searchJob = viewModelScope.launch { runSearch(reset = true) }
     }
