@@ -130,6 +130,21 @@ class DetailViewModel(
     fun episodesIn(language: LanguageInfo, season: Int): Int =
         language.seasons.firstOrNull { it.season == season }?.episodes ?: 0
 
+    /**
+     * Qualities the selected track carries in one season, highest first.
+     * Empty when the uploader did not report any per-quality counts — the caller
+     * then offers a single "best available" option.
+     */
+    fun resolutionsFor(language: LanguageInfo, season: Int): List<Int> =
+        language.seasons
+            .firstOrNull { it.season == season }
+            ?.resolutions
+            ?.map { it.resolution }
+            ?.filter { it > 0 }
+            ?.distinct()
+            ?.sortedDescending()
+            .orEmpty()
+
     private fun firstSeasonOf(language: LanguageInfo): Int =
         seasonsOf(language).firstOrNull() ?: 1
 
@@ -174,7 +189,7 @@ class DetailViewModel(
     }
 
     /** Resolves the selected episode and queues it in the system download manager. */
-    fun download() {
+    fun download(quality: Int? = null) {
         val selection = _selection.value ?: return
         viewModelScope.launch {
             _playback.value = PlaybackUiState.Resolving
@@ -183,6 +198,7 @@ class DetailViewModel(
                 subjectId = selection.language.subjectId.ifBlank { subjectId },
                 season = selection.season,
                 episode = selection.episode,
+                preferredResolution = quality,
             )
             when (result) {
                 is PlaybackResult.Ready -> {
@@ -193,7 +209,9 @@ class DetailViewModel(
                         title = labelFor(selection, result.source),
                         url = result.source.url,
                         headers = result.source.headers,
-                        fileName = "moviebox_${safeName}_s${selection.season}e${selection.episode}.mp4",
+                        fileName = "moviebox_${safeName}_s${selection.season}e${selection.episode}" +
+                            (result.source.resolution.takeIf { it > 0 }?.let { "_${it}p" }.orEmpty()) +
+                            ".mp4",
                     )
                     _playback.value = PlaybackUiState.Idle
                 }

@@ -51,6 +51,21 @@ class PlaybackTest {
     }
 
     @Test
+    fun `a preferred resolution selects the closest available file`() {
+        val data = PlayData(streams = listOf(mp4("360"), mp4("1080"), mp4("480")), hasResource = true)
+        val source = assertNotNull(selectPlaybackSource(data, headers, preferredResolution = 720))
+        assertEquals(480, source.resolution)
+    }
+
+    @Test
+    fun `an exact preferred resolution wins`() {
+        val data = PlayData(streams = listOf(mp4("360"), mp4("1080"), mp4("480")), hasResource = true)
+        val source = assertNotNull(selectPlaybackSource(data, headers, preferredResolution = 480))
+        assertEquals(480, source.resolution)
+        assertEquals("https://cdn.example/bt/480.mp4?sign=abc", source.url)
+    }
+
+    @Test
     fun `the highest available mp4 wins`() {
         val data = PlayData(
             streams = listOf(mp4("360"), mp4("1080"), mp4("480")),

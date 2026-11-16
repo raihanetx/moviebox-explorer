@@ -497,6 +497,7 @@ class MovieBoxRepository(
         subjectId: String,
         season: Int = 1,
         episode: Int = 1,
+        preferredResolution: Int? = null,
     ): PlaybackResult {
         val data = api.play(detailPath, subjectId, season, episode)
             ?: return PlaybackResult.Failed("Could not reach the catalogue")
@@ -507,7 +508,7 @@ class MovieBoxRepository(
             "Referer" to api.cdnReferer(),
             "User-Agent" to PLAYBACK_USER_AGENT,
         )
-        val source = selectPlaybackSource(data, headers)
+        val source = selectPlaybackSource(data, headers, preferredResolution)
         if (source != null) return PlaybackResult.Ready(source)
 
         return if (data.hasResource) {

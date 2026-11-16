@@ -1289,11 +1289,22 @@ Media3 receives them through `DefaultHttpDataSource.Factory().setDefaultRequestP
 
 ### 9.6 Downloads
 
-The detail screen has a **Download** button. It resolves the selected episode through
-the normal H5 play path, then hands the signed MP4 URL and headers to Android's system
-`DownloadManager`.
+The detail screen has a **Download** button (cart icon). Tapping it opens a guided
+sheet instead of downloading the current selection blindly:
 
-- Open **Settings → Downloads** to see the queue.
+1. **Language** — original track + English/Hindi dubs, same filter as the play sheet;
+2. **Season / Episode** — only shown for series (movies report a single season and
+   episode, so the sheet asks nothing);
+3. **Quality** — `BEST` plus every quality the uploader reported for that season
+   (`1080p`, `720p`, …). When the uploader reported nothing, only `BEST` is shown and
+   the note says the best available file is used.
+
+The request resolves through the normal H5 play path (`selectPlaybackSource` with the
+preferred quality, falling back to the closest available rendition), then hands the
+signed MP4 URL and headers to Android's system `DownloadManager`. The file name is
+`moviebox_<id>_s<se>e<ep>_<res>p.mp4`.
+
+- Open **Downloads** (bottom navigation) to see the queue.
 - Each row shows progress, size, status and a play button when complete.
 - Delete removes the download.
 - The system notification shows progress and completion.
@@ -1860,7 +1871,7 @@ All paths below are relative to the app root, `moviebox-explorer/`.
 | Change the fallback order | `MovieBoxRepository.kt` |
 | Change playback selection | `core/.../Playback.kt` |
 | Change season-number normalization | `core/.../SeasonMath.normalizeLanguages()` |
-| Change downloads | `app/.../data/Downloads.kt` + `ui/DownloadsScreen.kt` + `DetailViewModel.download()` |
+| Change downloads | `app/.../data/Downloads.kt` + `ui/DownloadsScreen.kt` + `DetailScreen.DownloadSheet` + `DetailViewModel.download(quality)` |
 | Change search result order | `core/.../SearchRank.kt` |
 | Change catalog grouping / validation | `core/.../CatalogGrouper.kt` + `CatalogValidator.kt` |
 | Change poster tap resolution | `core/.../MovieBoxRepository.resolveDetailTarget()` |

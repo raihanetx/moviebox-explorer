@@ -132,6 +132,7 @@ fun DetailScreen(
     var downloaded by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
+    var showDownload by remember { mutableStateOf(false) }
 
     val topBarColor by animateColorAsState(
         targetValue = if (scrolled) Color(0xCC0F1116) else Color.Transparent,
@@ -201,6 +202,34 @@ fun DetailScreen(
                 onPlay = viewModel::play,
                 seasonsOf = viewModel::seasonsOf,
                 episodesIn = viewModel::episodesIn,
+            )
+        }
+    }
+
+    if (showDownload && state is DetailUiState.Ready) {
+        ModalBottomSheet(
+            onDismissRequest = { showDownload = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Surface1,
+        ) {
+            DownloadSheet(
+                info = (state as DetailUiState.Ready).info,
+                selection = selection,
+                resolving = playback is PlaybackUiState.Resolving,
+                onSelectLanguage = viewModel::selectLanguage,
+                onSelectSeason = viewModel::selectSeason,
+                onSelectEpisode = viewModel::selectEpisode,
+                onDownload = { quality ->
+                    viewModel.download(quality)
+                    showDownload = false
+                    downloaded = true
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Download started")
+                    }
+                },
+                seasonsOf = viewModel::seasonsOf,
+                episodesIn = viewModel::episodesIn,
+                resolutionsFor = viewModel::resolutionsFor,
             )
         }
     }
@@ -278,11 +307,7 @@ fun DetailScreen(
                             }
                         },
                         onToggleDownload = {
-                            viewModel.download()
-                            downloaded = true
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Download started")
-                            }
+                            showDownload = true
                         },
                         onShowInfo = { showInfo = true },
                         onOpen = onOpen,
@@ -1104,6 +1129,165 @@ private fun EpisodePickerSheet(
             } else {
                 Text(
                     text = if (info.isMovie) "Play" else "Play S$season E$episode",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The guided download flow: language → (season/episode for series) → quality.
+ * Movies skip the episode step automatically because they report a single season
+ * with a single episode.
+ */
+@Composable
+private fun DownloadSheet(
+    info: TitleInfo,
+    selection: EpisodeSelection?,
+    resolving: Boolean,
+    onSelectLanguage: (LanguageInfo) -> Unit,
+    onSelectSeason: (Int) -> Unit,
+    onSelectEpisode: (Int) -> Unit,
+    onDownload: (Int?) -> Unit,
+    seasonsOf: (LanguageInfo) -> List<Int>,
+    episodesIn: (LanguageInfo, Int) -> Int,
+    resolutionsFor: (LanguageInfo, Int) -> List<Int>,
+) {
+    val language = selection?.language
+    val season = selection?.season ?: 1
+    val episode = selection?.episode ?: 1
+    val seasons = language?.let(seasonsOf).orEmpty()
+    val episodes = language?.let { episodesIn(it, season) } ?: 0
+    val qualities = language?.let { resolutionsFor(it, season) }.orEmpty()
+
+    // 0 = "best available"; a real resolution overrides it.
+    var quality by remember(language?.detailPath, language?.code, season) {
+        mutableStateOf(0)
+    }
+    val effectiveQuality = quality.takeIf { it > 0 }
+    val selectedLabel = effectiveQuality?.let { "${it}p" } ?: "Best"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 28.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(bottom = 18.dp)
+                .size(width = 40.dp, height = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Surface3),
+        )
+
+        Text(
+            text = if (info.isMovie) "Download movie" else "Download episode",
+            style = MaterialTheme.typography.titleLarge,
+            color = TextPrimary,
+            fontWeight = FontWeight.Bold,
+        )
+
+        InfoSection("Language") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                info.languages.forEach { item ->
+                    PickerChip(
+                        text = item.label,
+                        selected = item.detailPath == language?.detailPath &&
+                            item.code == language?.code,
+                        onClick = { onSelectLanguage(item) },
+                    )
+                }
+            }
+        }
+
+        if (seasons.size > 1) {
+            InfoSection("Season") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    seasons.forEach { number ->
+                        val count = language?.let { episodesIn(it, number) } ?: 0
+                        PickerChip(
+                            text = if (count > 0) "S$number ($count)" else "S$number",
+                            selected = number == season,
+                            onClick = { onSelectSeason(number) },
+                        )
+                    }
+                }
+            }
+        }
+
+        if (episodes > 1) {
+            InfoSection("Episode · $episodes") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    (1..episodes).forEach { number ->
+                        PickerChip(
+                            text = number.toString(),
+                            selected = number == episode,
+                            onClick = { onSelectEpisode(number) },
+                        )
+                    }
+                }
+            }
+        }
+
+        InfoSection("Quality") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PickerChip(
+                    text = "BEST",
+                    selected = quality == 0,
+                    onClick = { quality = 0 },
+                )
+                qualities.forEach { resolution ->
+                    PickerChip(
+                        text = "${resolution}p",
+                        selected = quality == resolution,
+                        onClick = { quality = resolution },
+                    )
+                }
+            }
+            if (qualities.isEmpty()) {
+                Text(
+                    text = "Uploader did not report per-quality counts; the best available file is used.",
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextTertiary,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(
+            onClick = { onDownload(effectiveQuality) },
+            enabled = !resolving && language != null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp),
+            shape = RoundedCornerShape(23.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = Surface0,
+            ),
+        ) {
+            if (resolving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = Surface0,
+                )
+            } else {
+                Text(
+                    text = if (info.isMovie) {
+                        "Download · $selectedLabel"
+                    } else {
+                        "Download S$season E$episode · $selectedLabel"
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                 )

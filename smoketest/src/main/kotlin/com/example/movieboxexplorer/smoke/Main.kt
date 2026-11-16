@@ -312,6 +312,18 @@ fun main(args: Array<String>) = runBlocking {
         return@runBlocking
     }
 
+    if (keyword == "page-op") {
+        val path = args.getOrNull(1) ?: "/web/film"
+        val api = MovieBoxApi()
+        val rows = api.pageOperating(path)
+        println("path=$path rows=${rows.size}")
+        rows.take(8).forEach {
+            println("  ${it.title ?: it.type}: ${it.subjects.size} items")
+        }
+        api.close()
+        return@runBlocking
+    }
+
     if (keyword == "search-inspect") {
         val term = args.getOrNull(1) ?: "Black Clover"
         val h5Api = MovieBoxApi()

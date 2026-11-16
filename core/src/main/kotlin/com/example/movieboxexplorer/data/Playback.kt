@@ -161,11 +161,22 @@ fun PlayData.lockReason(): String? {
  * pointing at one of the site's mirror hosts, while the adaptive DASH manifest
  * additionally needs the edge cache credential. The adaptive manifest is only used
  * for titles that ship no MP4 at all.
+ *
+ * [preferredResolution] asks for a specific quality (used by the download flow).
+ * An exact match wins; otherwise the closest available quality is used; when no
+ * preference is set the highest rendition is picked, as before.
  */
-fun selectPlaybackSource(data: PlayData, headers: Map<String, String>): PlaybackSource? {
-    val progressive = data.streams
-        .filter { it.url.isNotBlank() && !it.vipLocked && !it.isPromo }
-        .maxByOrNull { it.resolution }
+fun selectPlaybackSource(
+    data: PlayData,
+    headers: Map<String, String>,
+    preferredResolution: Int? = null,
+): PlaybackSource? {
+    val progressiveCandidates = data.streams.filter { it.url.isNotBlank() && !it.vipLocked && !it.isPromo }
+    val progressive = if (preferredResolution != null) {
+        progressiveCandidates.minByOrNull { kotlin.math.abs(it.resolution - preferredResolution) }
+    } else {
+        progressiveCandidates.maxByOrNull { it.resolution }
+    }
     if (progressive != null) {
         return PlaybackSource(
             url = progressive.url,
