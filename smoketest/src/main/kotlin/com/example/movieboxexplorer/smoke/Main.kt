@@ -312,6 +312,31 @@ fun main(args: Array<String>) = runBlocking {
         return@runBlocking
     }
 
+    if (keyword == "search-inspect") {
+        val term = args.getOrNull(1) ?: "Black Clover"
+        val h5Api = MovieBoxApi()
+        val mobileApi = MobileApi()
+        println("=== H5 search: $term ===")
+        h5Api.search(term, page = 1, perPage = 8, subjectType = 0).items.forEachIndexed { i, it ->
+            println("$i ${it.title} | id=${it.subjectId} | path=\"${it.detailPath}\" | type=${it.subjectType} | risk=${it.webHighRisk}")
+        }
+        println("=== Mobile search: $term ===")
+        val mobileItems = mobileApi.searchSubjects(term, perPage = 8)
+        mobileItems.forEachIndexed { i, it ->
+            println("$i ${it.title} | id=${it.subjectId} | path=\"${it.detailPath}\" | type=${it.subjectType} | risk=${it.webHighRisk}")
+        }
+        println("=== Tap simulation (resolveDetailTarget) ===")
+        val repo = MovieBoxRepository(MovieBoxApi(siteHosts = listOf("themoviebox.xyz")))
+        mobileItems.take(4).forEach { item ->
+            val target = repo.resolveDetailTarget(item)
+            println("tap ${item.title} -> path=\"${target.detailPath}\" id=${target.subjectId}")
+        }
+        h5Api.close()
+        mobileApi.close()
+        repo.close()
+        return@runBlocking
+    }
+
     if (keyword == "titles") {
         val titles = listOf(
             "That Time I Got Reincarnated as a Slime",

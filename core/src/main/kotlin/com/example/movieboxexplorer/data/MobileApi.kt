@@ -137,7 +137,17 @@ class MobileApi(
             val detail = if (wrapped != null) {
                 runCatching {
                     jsonFormat.decodeFromJsonElement(MobileDetail.serializer(), data)
-                }.getOrNull()
+                }.getOrNull()?.takeIf { it.subject?.subjectId?.isNotBlank() == true }
+                    ?.let { mobileDetail ->
+                        val subject = mobileDetail.subject!!
+                        mobileDetail.copy(
+                            subject = subject.copy(
+                                detailPath = subject.detailPath.ifBlank {
+                                    subject.detailUrl.trimEnd('/').substringAfterLast('/')
+                                },
+                            ),
+                        )
+                    }
             } else {
                 val subject = runCatching {
                     jsonFormat.decodeFromJsonElement(Subject.serializer(), data)

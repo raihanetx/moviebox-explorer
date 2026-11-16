@@ -423,8 +423,9 @@ app root, that is `../docs/`.
 2. MovieBoxApi.home(host) → GET /wefeed-h5api-bff/home?host=…
 3. MovieBoxApi.trending(page=0) → Suggestions row
 4. UI renders hero + platform strip + rails
-5. User taps a poster → the tapped record opens directly; `resolveBestMatch(title)`
-   is only used when the tapped record has no usable `detailPath`/`subjectId` → DetailViewModel
+5. User taps a poster → the tapped record opens directly; `resolveDetailTarget`
+   looks up the *same* subjectId when the tapped record has no `detailPath`
+   (mobile search returns blank paths); keyword re-ranking is a last resort only → DetailViewModel
 6. repository.loadTitle(detailPath, subjectId)
 7. MovieBoxApi.detail(...) → H5 record
 8. For every dub: MovieBoxApi.detail(...) or MobileApi.detail(...)
@@ -1096,16 +1097,23 @@ finite row set.
 - Suggestions come from `POST /subject/search-suggest`. The panel is capped at
   five entries / 232 dp, is scrollable, and is cleared once the search is committed,
   so it never pushes the results list off-screen.
-- Tapping a result opens that exact record. `resolveBestMatch(title)` is only used
-  as a fallback when the tapped record has no usable `detailPath`/`subjectId`;
-  tapping "Black Clover" always opens "Black Clover".
+- Tapping a result opens that exact record (`resolveDetailTarget`). When the tapped
+  record has no `detailPath` — the mobile search returns subjects with a blank path —
+  the app looks up the **same subjectId** and derives the slug from the mobile detail
+  record (`detailPath`, falling back to the `detailUrl` slug), instead of re-searching
+  by keyword. `resolveBestMatch(title)` is a last resort used only when there is
+  nothing to look up at all. Tapping "Black Clover" always opens "Black Clover".
+  The search list also dedupes by `subjectId`, so the same record cannot appear
+  twice (with and without a path).
 
 #### Detail
 
 - Loads `repository.loadTitle(detailPath, subjectId)`.
-- It opens the exact record the user tapped. `resolveBestMatch(title)` is kept only as
-  a fallback when a tapped record has no usable `detailPath`/`subjectId` — re-ranking
-  on every tap used to send users to a different title than the one they clicked.
+- It opens the exact record the user tapped. When the tapped record has no
+  `detailPath` (the mobile search returns blank paths), `resolveDetailTarget`
+  resolves the **same subjectId** against the mobile detail endpoint — opening the
+  page always matches the record that was clicked. `resolveBestMatch(title)` is a
+  last resort only, used when there is nothing to look up at all.
 - Shows:
   - poster, title, year, rating, genre, country;
   - synopsis;
@@ -1855,6 +1863,7 @@ All paths below are relative to the app root, `moviebox-explorer/`.
 | Change downloads | `app/.../data/Downloads.kt` + `ui/DownloadsScreen.kt` + `DetailViewModel.download()` |
 | Change search result order | `core/.../SearchRank.kt` |
 | Change catalog grouping / validation | `core/.../CatalogGrouper.kt` + `CatalogValidator.kt` |
+| Change poster tap resolution | `core/.../MovieBoxRepository.resolveDetailTarget()` |
 | Change poster best-match fallback | `core/.../SearchRank.bestMatch()` + `MovieBoxRepository.resolveBestMatch()` |
 | Change risk gating | `core/.../RiskPolicy.kt` + `ui/AdultGate.kt` |
 | Change diagnostics checks | `core/.../MovieBoxRepository.diagnostics()` + `ui/DiagnosticsScreen.kt` |

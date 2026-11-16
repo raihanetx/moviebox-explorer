@@ -182,7 +182,9 @@ class SearchViewModel(private val repository: MovieBoxRepository) : ViewModel() 
             runCatching { repository.highRiskSearch(keyword) }.getOrDefault(emptyList())
         }
         val merged = (result.items + highRisk)
-            .distinctBy { it.detailPath.ifBlank { it.subjectId } }
+            // H5 and mobile share the same `subjectId`; dedupe on it so the same
+            // record is never shown twice (with and without a `detailPath`).
+            .distinctBy { it.subjectId.ifBlank { it.detailPath } }
 
         _state.value = SearchUiState.Results(
             items = merged,

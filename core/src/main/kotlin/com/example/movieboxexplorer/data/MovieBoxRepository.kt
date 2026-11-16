@@ -78,6 +78,33 @@ class MovieBoxRepository(
         )
     }
 
+    /**
+     * Resolve the record to open when the user taps a poster.
+     *
+     * The tapped record is always preferred: keyword re-ranking used to send the
+     * user to a different title than the one they clicked. Only when the tapped
+     * record carries no `detailPath` (the mobile search returns subjects with a
+     * blank path) do we look up the *same* subjectId and derive the slug — the
+     * detail endpoint is keyed by subjectId, so the opened page always matches
+     * the tap. Keyword re-ranking remains as a last resort when there is nothing
+     * to look up.
+     */
+    suspend fun resolveDetailTarget(subject: SubjectBrief): SubjectBrief {
+        if (subject.detailPath.isNotBlank()) return subject
+        if (subject.subjectId.isBlank()) {
+            return resolveBestMatch(subject.title, subject)
+        }
+        val detail = runCatching { mobile.detail(subject.subjectId) }.getOrNull()?.subject
+        val path = detail?.detailPath.orEmpty().ifBlank {
+            detail?.detailUrl.orEmpty().trimEnd('/').substringAfterLast('/')
+        }
+        if (path.isBlank()) return subject
+        return subject.copy(
+            detailPath = path,
+            cover = subject.cover ?: detail?.cover,
+        )
+    }
+
     suspend fun suggest(keyword: String): List<String> = api.suggest(keyword)
 
     suspend fun everyoneSearch(): EveryoneSearchPage = api.everyoneSearch()
