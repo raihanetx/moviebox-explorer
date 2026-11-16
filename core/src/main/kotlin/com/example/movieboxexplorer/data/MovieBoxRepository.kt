@@ -225,6 +225,17 @@ class MovieBoxRepository(
     ): CatalogGrid = gridOf("/web/animated-series", ANIME_CHANNEL_ID, page, filter)
 
     /**
+     * The all-films browser, copied from the website's `/web/film` page — every
+     * film the site lists (yoruba originals to English blockbusters, not just the
+     * trending rows on the movie tab), with the site's own filter bar.
+     */
+    suspend fun filmGrid(
+        host: String,
+        page: Int = 1,
+        filter: CatalogFilter = CatalogFilter(),
+    ): CatalogGrid = gridOf("/web/film", MOVIE_CHANNEL_ID, page, filter, FILM_PAGE_SIZE)
+
+    /**
      * The filter bar of a catalog grid.
      *
      * The configuration lives in the page's payload — `channelId`, the channel the
@@ -254,6 +265,7 @@ class MovieBoxRepository(
         channelId: Int,
         page: Int,
         filter: CatalogFilter,
+        perPage: Int = FILTER_PAGE_SIZE,
     ): CatalogGrid {
         if (page <= 1 && filter.isEmpty) {
             for (html in api.fetchPages(path)) {
@@ -272,7 +284,7 @@ class MovieBoxRepository(
         val data = api.filter(
             FilterRequest(
                 page = page,
-                perPage = FILTER_PAGE_SIZE,
+                perPage = perPage,
                 channelId = channelId,
                 genre = filter.genre,
                 country = filter.country,
@@ -707,8 +719,14 @@ class MovieBoxRepository(
         /** The channel the website's animation grid lists (`channelName: "Anime"`). */
         const val ANIME_CHANNEL_ID = 1006
 
+        /** The channel the website's film grid lists (`channelName: "Movie"`). */
+        const val MOVIE_CHANNEL_ID = 1
+
         /** The page size the website's "load more" asks for. */
         const val FILTER_PAGE_SIZE = 28
+
+        /** The page size the website's film grid uses. */
+        const val FILM_PAGE_SIZE = 36
 
         /** The CDN rejects media requests that do not look like they come from the app. */
         const val PLAYBACK_USER_AGENT =

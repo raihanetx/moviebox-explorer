@@ -312,6 +312,31 @@ fun main(args: Array<String>) = runBlocking {
         return@runBlocking
     }
 
+    if (keyword == "films") {
+        val host = "themoviebox.xyz"
+        val repo = MovieBoxRepository(MovieBoxApi())
+        val grid = repo.filmGrid(host)
+        println("films page1: items=${grid.items.size} hasMore=${grid.hasMore} nextPage=${grid.nextPage}")
+        grid.items.take(5).forEach {
+            println("  ${it.title} | ${it.releaseDate} | imdb ${it.imdbRatingValue} | ${it.countryName}")
+        }
+        val filters = repo.filterConfig("/web/film").firstOrNull()?.items.orEmpty()
+        println("filters:")
+        filters.forEach { group ->
+            println(
+                "  ${group.title} (${group.filterType}): ${group.filterVals.size} options" +
+                    (group.rangeVals?.let { " range=${it.minVal}-${it.maxVal}" } ?: "") +
+                    " showOut=${group.showOut}",
+            )
+        }
+        val filtered = repo.filmGrid(host, 1, CatalogFilter(genre = "Action", sort = "Hottest"))
+        println("genre=Action sort=Hottest: items=${filtered.items.size} first=${filtered.items.firstOrNull()?.title}")
+        val page2 = repo.filmGrid(host, 2)
+        println("page2: items=${page2.items.size} hasMore=${page2.hasMore}")
+        repo.close()
+        return@runBlocking
+    }
+
     if (keyword == "page-op") {
         val path = args.getOrNull(1) ?: "/web/film"
         val api = MovieBoxApi()

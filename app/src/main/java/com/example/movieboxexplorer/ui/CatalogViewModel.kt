@@ -97,8 +97,10 @@ class CatalogViewModel(
 
     private suspend fun buildContent(page: Int, filter: CatalogFilter): CatalogContent =
         when (kind) {
-            // The movie page is a stack of rows, exactly like the website's /web/movie.
-            CatalogKind.MOVIES -> CatalogContent.Rows(repository.movieRows(host))
+            // The movies tab is the website's "all films" browser — one flat poster
+            // grid with the site's own filter bar, not the trending rows.
+            CatalogKind.MOVIES ->
+                CatalogContent.Grid(repository.filmGrid(host, page, filter))
             // The TV and animation catalogs are flat poster grids on the website.
             CatalogKind.ANIMATED ->
                 CatalogContent.Grid(fetchGrid(page, filter))
@@ -109,6 +111,7 @@ class CatalogViewModel(
     private suspend fun fetchGrid(page: Int, filter: CatalogFilter): CatalogGrid =
         when (kind) {
             CatalogKind.ANIMATED -> repository.animatedGrid(host, page, filter)
+            CatalogKind.MOVIES -> repository.filmGrid(host, page, filter)
             else -> repository.seriesGrid(host, page, filter)
         }
 
@@ -116,8 +119,7 @@ class CatalogViewModel(
         val path = when (kind) {
             CatalogKind.TV -> "/web/tv-series"
             CatalogKind.ANIMATED -> "/web/animated-series"
-            // The movie channel carries no server-side filter config — same as the website.
-            CatalogKind.MOVIES -> return emptyList()
+            CatalogKind.MOVIES -> "/web/film"
         }
         val configs = runCatching { repository.filterConfig(path) }.getOrNull().orEmpty()
         return configs.firstOrNull()?.items.orEmpty()

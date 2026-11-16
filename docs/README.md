@@ -825,6 +825,7 @@ track’s season number when the episode count matches. That fixes records like
 
 | `seriesGrid(host, page, filter)` | TV grid (channel 2) |
 | `animatedGrid(host, page, filter)` | Animation grid (channel 1006) |
+| `filmGrid(host, page, filter)` | All-films grid, `/web/film` (channel 1, 36/page) |
 | `loadTitle(detailPath, subjectId)` | H5 record → every dub resolved → `TitleInfo` |
 | `playEpisode(...)` | H5 play → `selectPlaybackSource` → `PlaybackResult` |
 | `captions(...)` | Subtitles for an episode |
@@ -1059,12 +1060,14 @@ The bottom bar is hidden on the detail and player routes.
 
 | Kind | Content | Source |
 |---|---|---|
-| `MOVIES` | Rows | `repository.movieRows(host)` |
+| `MOVIES` | Flat grid + filter bar (all films) | `/web/film` SSR + `POST /subject/filter` (channel 1, 36/page) |
 | `TV` | Flat grid + filter bar | `/web/tv-series` SSR + `POST /subject/filter` |
 | `ANIMATED` | Flat grid + filter bar | `/web/animated-series` SSR + `POST /subject/filter` |
 
-`CatalogViewModel` supports “load more” for grids only. The movie page is a
-finite row set.
+`CatalogViewModel` supports "load more" for grids. The Movies tab mirrors the
+website's films page: one poster grid with the site's own filter bar (Genre,
+Country, Year, Language, Sort by) and infinite scroll. The old `movieRows`
+trending-rows catalog is kept for the home rails but no longer drives the tab.
 
 ### 8.6 Screen-by-screen
 
@@ -1081,11 +1084,11 @@ finite row set.
 #### Catalog
 
 - `CatalogViewModel` loads one of four kinds:
-  - `MOVIES` — `movieRows` (rows);
+  - `MOVIES` — `/web/film` SSR grid + filter API (all films, site's filter bar);
   - `TV` — SSR grid + filter API;
   - `ANIMATED` — SSR grid + filter API;
 - The filter bar is built from the page's own `filterItemsData`.
-- Grid pages support **load more** (28 items per page).
+- Grid pages support **load more** (28 items per page; 36 on `/web/film`).
 - The top bar shows the screen title.
 
 #### Search
@@ -1422,6 +1425,7 @@ and “Hindi dub is missing” bugs. They run on the JVM, with no network.
 | `gradle :smoketest:run --args='"diagnostics"'` | Full H5 + mobile + playback report |
 | `gradle :smoketest:run --args='"validate-catalog"'` | Group the whole catalog and validate a sample |
 | `gradle :smoketest:run --args='"validate-title" "Black Clover"'` | Group and validate one title |
+| `gradle :smoketest:run --args='"films"'` | `/web/film` grid page 1, filters, a filtered page and page 2 |
 
 ### 12.4 Content coverage baseline
 
