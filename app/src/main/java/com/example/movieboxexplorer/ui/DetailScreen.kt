@@ -30,10 +30,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -552,6 +553,20 @@ private fun MetaRow(info: TitleInfo) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Type first — the app must never make a movie look like a series.
+        Badge(
+            text = when (subject.subjectType) {
+                1 -> "Movie"
+                2 -> "Series"
+                6 -> "Music"
+                else -> "Title"
+            },
+            color = when (subject.subjectType) {
+                1 -> Color(0xFF4FC3F7)
+                2 -> Color(0xFF9CCC65)
+                else -> ImdbGold
+            },
+        )
         if (subject.imdbRatingValue.isNotBlank()) {
             Icon(
                 imageVector = Icons.Default.Star,
@@ -632,12 +647,29 @@ private fun ActionsRow(
             )
         }
 
-        ActionIcon(
-            icon = if (downloaded) Icons.Default.Check else Icons.Default.ShoppingCart,
-            active = downloaded,
+        // A labeled button, not an icon-only cart — users could not tell what it does.
+        OutlinedButton(
             onClick = onToggleDownload,
-            label = if (downloaded) "Remove download" else "Download",
-        )
+            modifier = Modifier.height(44.dp),
+            shape = RoundedCornerShape(22.dp),
+            border = BorderStroke(1.dp, Surface3),
+            contentPadding = PaddingValues(horizontal = 14.dp),
+        ) {
+            Icon(
+                imageVector = if (downloaded) Icons.Default.Check else Icons.Default.ShoppingCart,
+                contentDescription = null,
+                modifier = Modifier.size(17.dp),
+                tint = if (downloaded) PrimaryFg else TextPrimary,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = if (downloaded) "Queued" else "Download",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = if (downloaded) PrimaryFg else TextPrimary,
+                maxLines = 1,
+            )
+        }
         ActionIcon(
             icon = if (saved) Icons.Default.Check else Icons.Default.Add,
             active = saved,
@@ -1065,7 +1097,7 @@ private fun EpisodePickerSheet(
             }
         }
 
-        if (seasons.size > 1) {
+        if (!info.isMovie && seasons.size > 1) {
             InfoSection("Season") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     seasons.forEach { number ->
@@ -1204,7 +1236,7 @@ private fun DownloadSheet(
             }
         }
 
-        if (seasons.size > 1) {
+        if (!info.isMovie && seasons.size > 1) {
             InfoSection("Season") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     seasons.forEach { number ->

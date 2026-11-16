@@ -1118,14 +1118,19 @@ trending-rows catalog is kept for the home rails but no longer drives the tab.
   page always matches the record that was clicked. `resolveBestMatch(title)` is a
   last resort only, used when there is nothing to look up at all.
 - Shows:
-  - poster, title, year, rating, genre, country;
+  - **Type chip** (`Movie` / `Series` / `Music`) first in the meta row; a `MOVIE` / `SERIES` /
+  `MUSIC` pill is overlaid on every poster (home, ranking, rails, grids), so the type is
+  visible without opening the title;
+- poster, title, year, rating, genre, country;
   - synopsis;
   - **Audio language** picker (original track + English/Hindi dubs only — no subtitles);
   - **Language coverage** report: Original / English / Hindi with `FULL`, `PARTIAL`,
     `NOT AVAILABLE`, episodes/reference, missing counts and seasons;
   - hero shows the title’s cover artwork;
   - **Season** picker and episode list (split seasons are merged; the mobile season
-    count is used when H5 is shorter);
+    count is used when H5 is shorter). Never shown for films — a movie is one season,
+    so the pickers ask only language and quality (an episode list is still shown if a
+    film genuinely carries more than one part);
   - season numbers are normalized against the original track — a dub that reports
     `S5:12` is mapped to the original’s `S1` when S1 has 12 episodes;
   - the season chips show the episode count (`S1 (170)`, `S2 (7)`);
@@ -1292,7 +1297,8 @@ Media3 receives them through `DefaultHttpDataSource.Factory().setDefaultRequestP
 
 ### 9.6 Downloads
 
-The detail screen has a **Download** button (cart icon). Tapping it opens a guided
+The detail screen has a labeled **Download** button next to Play Now (it used to be an
+icon-only cart — users could not tell what it did). Tapping it opens a guided
 sheet instead of downloading the current selection blindly:
 
 1. **Language** — original track + English/Hindi dubs, same filter as the play sheet;

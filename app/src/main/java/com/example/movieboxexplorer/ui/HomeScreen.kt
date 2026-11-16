@@ -742,6 +742,13 @@ private fun HomePosterCard(item: SubjectBrief, onClick: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
             )
 
+            TypePill(
+                item = item,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+            )
+
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

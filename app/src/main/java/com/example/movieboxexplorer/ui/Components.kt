@@ -109,6 +109,30 @@ fun ErrorBox(message: String, onRetry: () -> Unit) {
     }
 }
 
+/** Small pill showing what a title is — movie, series, music. */
+@Composable
+fun TypePill(item: SubjectBrief, modifier: Modifier = Modifier) {
+    val (label, color) = when (item.subjectType) {
+        1 -> "MOVIE" to Color(0xFF4FC3F7)
+        2 -> "SERIES" to Color(0xFF9CCC65)
+        6 -> "MUSIC" to Color(0xFFF5A623)
+        else -> return
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(Color.Black.copy(alpha = 0.65f))
+            .padding(horizontal = 5.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
 /** 2:3 poster card with title + rating. */
 @Composable
 fun PosterCard(
@@ -167,6 +191,12 @@ fun PosterCard(
                     )
                 }
             }
+            TypePill(
+                item = item,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp),
+            )
         }
         Text(
             text = item.title,
@@ -345,6 +375,12 @@ internal fun GridPosterCard(item: SubjectBrief, onClick: () -> Unit) {
                     )
                 }
             }
+            TypePill(
+                item = item,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+            )
         }
     }
 }
