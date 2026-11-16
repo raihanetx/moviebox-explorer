@@ -110,6 +110,7 @@ fun DetailScreen(
     onPlayEpisode: (PlaybackSource, String) -> Unit,
     onPlayTrailer: () -> Unit,
     onOpen: (SubjectBrief) -> Unit,
+    autoOpenDownload: Boolean = false,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val related by viewModel.related.collectAsStateWithLifecycle()
@@ -134,6 +135,16 @@ fun DetailScreen(
     var expanded by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
     var showDownload by remember { mutableStateOf(false) }
+    var autoDownloadOpened by remember { mutableStateOf(false) }
+
+    // A poster download button navigates here with autoOpenDownload — open the
+    // guided download sheet as soon as the title is ready, once.
+    LaunchedEffect(autoOpenDownload, state) {
+        if (autoOpenDownload && !autoDownloadOpened && state is DetailUiState.Ready) {
+            autoDownloadOpened = true
+            showDownload = true
+        }
+    }
 
     val topBarColor by animateColorAsState(
         targetValue = if (scrolled) Color(0xCC0F1116) else Color.Transparent,

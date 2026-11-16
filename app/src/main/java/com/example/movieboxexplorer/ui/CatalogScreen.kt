@@ -46,6 +46,7 @@ fun CatalogScreen(
     viewModel: CatalogViewModel,
     title: String,
     onOpen: (SubjectBrief) -> Unit,
+    onDownload: (SubjectBrief) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -69,6 +70,7 @@ fun CatalogScreen(
                 onSelectFilter = viewModel::selectFilter,
                 onLoadMore = viewModel::loadMore,
                 onOpen = onOpen,
+                onDownload = onDownload,
                 modifier = Modifier
                     .padding(padding)
                     .fillMaxSize(),
@@ -95,6 +97,7 @@ internal fun CatalogContentView(
     onOpen: (SubjectBrief) -> Unit,
     modifier: Modifier = Modifier,
     columns: Int = 3,
+    onDownload: ((SubjectBrief) -> Unit)? = null,
 ) {
     when (content) {
         is CatalogContent.Rows -> LazyColumn(
@@ -125,6 +128,7 @@ internal fun CatalogContentView(
                 onClick = onOpen,
                 modifier = Modifier.fillMaxSize(),
                 columns = columns,
+                onDownload = onDownload,
             )
         }
     }

@@ -1297,8 +1297,11 @@ Media3 receives them through `DefaultHttpDataSource.Factory().setDefaultRequestP
 
 ### 9.6 Downloads
 
-The detail screen has a labeled **Download** button next to Play Now (it used to be an
-icon-only cart — users could not tell what it did). Tapping it opens a guided
+Download icons appear **on the posters themselves** (all grids, home rails, ranking):
+they open the title and the guided download sheet automatically (`detail/{path}/{id}?download=true`).
+The detail screen also has a labeled **Download** button next to Play Now
+(it used to be an icon-only cart — users could not tell what it did).
+Tapping it opens a guided
 sheet instead of downloading the current selection blindly:
 
 1. **Language** — original track + English/Hindi dubs, same filter as the play sheet;

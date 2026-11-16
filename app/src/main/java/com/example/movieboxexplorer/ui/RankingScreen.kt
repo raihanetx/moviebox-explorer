@@ -36,6 +36,7 @@ import com.example.movieboxexplorer.data.SubjectBrief
 fun RankingScreen(
     viewModel: RankingViewModel,
     onOpen: (SubjectBrief) -> Unit,
+    onDownload: (SubjectBrief) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -79,7 +80,11 @@ fun RankingScreen(
                         ) {
                             rowItems.forEach { item ->
                                 Column(modifier = Modifier.weight(1f)) {
-                                    PosterCard(item = item, onClick = { onOpen(item) })
+                                    PosterCard(
+                                        item = item,
+                                        onClick = { onOpen(item) },
+                                        onDownload = onDownload,
+                                    )
                                 }
                             }
                             repeat(3 - rowItems.size) {

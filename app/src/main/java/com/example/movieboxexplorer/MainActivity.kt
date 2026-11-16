@@ -147,23 +147,25 @@ private fun MovieBoxApp() {
         }
         val navController = rememberNavController()
         val openDetailScope = rememberCoroutineScope()
-        val openDetail: (SubjectBrief) -> Unit = { subject ->
+
+        // Local function (not a val) so call sites can pass download = true.
+        fun openDetail(subject: SubjectBrief, download: Boolean = false) {
             // Navigate to the exact record the user tapped. Keyword re-ranking
             // ("best match") would silently swap in a different title (the "tap
             // Black Clover, open another show" bug). The fallback only resolves
             // the *same* subjectId when the tapped record carries no detailPath.
+            fun target(path: String, id: String) =
+                if (download) "detail/${Uri.encode(path)}/$id?download=true"
+                else "detail/${Uri.encode(path)}/$id"
+
             if (subject.detailPath.isNotBlank() && subject.subjectId.isNotBlank()) {
-                navController.navigate(
-                    "detail/${Uri.encode(subject.detailPath)}/${subject.subjectId}",
-                )
+                navController.navigate(target(subject.detailPath, subject.subjectId))
             } else {
                 openDetailScope.launch {
-                    val target = runCatching {
+                    val resolved = runCatching {
                         repository.resolveDetailTarget(subject)
                     }.getOrDefault(subject)
-                    navController.navigate(
-                        "detail/${Uri.encode(target.detailPath)}/${target.subjectId}",
-                    )
+                    navController.navigate(target(resolved.detailPath, resolved.subjectId))
                 }
             }
         }
@@ -218,6 +220,7 @@ private fun MovieBoxApp() {
                         onOpenRanking = { navController.navigate("ranking") },
                         onOpenSettings = { showSettings = true },
                         onBrowse = { route -> navController.navigate(route) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
                     )
                 }
 
@@ -229,6 +232,7 @@ private fun MovieBoxApp() {
                         viewModel = viewModel,
                         title = "Movies",
                         onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
                     )
                 }
 
@@ -240,6 +244,7 @@ private fun MovieBoxApp() {
                         viewModel = viewModel,
                         title = "Animation",
                         onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
                     )
                 }
 
@@ -251,6 +256,7 @@ private fun MovieBoxApp() {
                         viewModel = viewModel,
                         title = "TV Shows",
                         onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
                     )
                 }
 
@@ -271,6 +277,7 @@ private fun MovieBoxApp() {
                     RankingScreen(
                         viewModel = viewModel,
                         onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
                     )
                 }
 
@@ -296,14 +303,19 @@ private fun MovieBoxApp() {
                 }
 
                 composable(
-                    route = "detail/{path}/{id}",
+                    route = "detail/{path}/{id}?download={download}",
                     arguments = listOf(
                         navArgument("path") { type = NavType.StringType },
                         navArgument("id") { type = NavType.StringType },
+                        navArgument("download") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        },
                     ),
                 ) { entry ->
                     val path = entry.arguments?.getString("path").orEmpty()
                     val id = entry.arguments?.getString("id").orEmpty()
+                    val autoDownload = entry.arguments?.getBoolean("download") ?: false
                     val viewModel: DetailViewModel = viewModel(
                         factory = DetailViewModel.factory(repository, path, id),
                     )
@@ -312,6 +324,7 @@ private fun MovieBoxApp() {
                         allowAdult = allowAdult,
                         onEnableAdult = { settings.showAdultContent = true },
                         onBack = { navController.popBackStack() },
+                        autoOpenDownload = autoDownload,
                         onPlayEpisode = { source, label ->
                             PlaybackHolder.set(source)
                             val ready = viewModel.state.value as? DetailUiState.Ready

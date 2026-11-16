@@ -24,7 +24,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -133,12 +136,37 @@ fun TypePill(item: SubjectBrief, modifier: Modifier = Modifier) {
     }
 }
 
+/** Small circular download affordance placed on posters. */
+@Composable
+internal fun DownloadPill(
+    item: SubjectBrief,
+    onDownload: (SubjectBrief) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.Black.copy(alpha = 0.65f))
+            .clickable { onDownload(item) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.ShoppingCart,
+            contentDescription = "Download ${item.title}",
+            tint = Color.White,
+            modifier = Modifier.size(17.dp),
+        )
+    }
+}
+
 /** 2:3 poster card with title + rating. */
 @Composable
 fun PosterCard(
     item: SubjectBrief,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onDownload: ((SubjectBrief) -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -177,7 +205,7 @@ fun PosterCard(
             if (item.webHighRisk) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.BottomEnd)
                         .padding(6.dp)
                         .clip(RoundedCornerShape(5.dp))
                         .background(Color(0xCC8E24AA))
@@ -197,6 +225,15 @@ fun PosterCard(
                     .align(Alignment.TopStart)
                     .padding(6.dp),
             )
+            onDownload?.let { download ->
+                DownloadPill(
+                    item = item,
+                    onDownload = download,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp),
+                )
+            }
         }
         Text(
             text = item.title,
@@ -262,6 +299,7 @@ fun PosterGrid(
     onClick: (SubjectBrief) -> Unit,
     modifier: Modifier = Modifier,
     columns: Int = 3,
+    onDownload: ((SubjectBrief) -> Unit)? = null,
 ) {
     val listState = rememberLazyGridState()
     val shouldLoadMore by remember {
@@ -285,7 +323,11 @@ fun PosterGrid(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         itemsIndexed(items, key = { index, it -> "${index}_${it.subjectId}" }) { _, item ->
-            GridPosterCard(item = item, onClick = { onClick(item) })
+            GridPosterCard(
+                item = item,
+                onClick = { onClick(item) },
+                onDownload = onDownload,
+            )
         }
         if (loadingMore) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -302,7 +344,11 @@ fun PosterGrid(
 
 /** One poster in the grid — artwork with the title overlaid, like a streaming app. */
 @Composable
-internal fun GridPosterCard(item: SubjectBrief, onClick: () -> Unit) {
+internal fun GridPosterCard(
+    item: SubjectBrief,
+    onClick: () -> Unit,
+    onDownload: ((SubjectBrief) -> Unit)? = null,
+) {
     Column(
         modifier = Modifier.clickable(onClick = onClick),
     ) {
@@ -361,7 +407,7 @@ internal fun GridPosterCard(item: SubjectBrief, onClick: () -> Unit) {
             if (item.webHighRisk) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.BottomEnd)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color(0xCC8E24AA))
@@ -381,6 +427,15 @@ internal fun GridPosterCard(item: SubjectBrief, onClick: () -> Unit) {
                     .align(Alignment.TopStart)
                     .padding(8.dp),
             )
+            onDownload?.let { download ->
+                DownloadPill(
+                    item = item,
+                    onDownload = download,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                )
+            }
         }
     }
 }

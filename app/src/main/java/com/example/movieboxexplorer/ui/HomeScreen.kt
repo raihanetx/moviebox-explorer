@@ -94,6 +94,7 @@ fun HomeScreen(
     onOpenRanking: () -> Unit,
     onOpenSettings: () -> Unit,
     onBrowse: (String) -> Unit = {},
+    onDownload: (SubjectBrief) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -175,6 +176,7 @@ fun HomeScreen(
                             rail = rail,
                             onOpen = onOpen,
                             onSeeAll = { onBrowse("movies") },
+                            onDownload = onDownload,
                         )
                     }
 
@@ -659,6 +661,7 @@ private fun HomeRailSection(
     rail: HomeRail,
     onOpen: (SubjectBrief) -> Unit,
     onSeeAll: () -> Unit,
+    onDownload: (SubjectBrief) -> Unit,
 ) {
     Column(modifier = Modifier.padding(top = 24.dp)) {
         Row(
@@ -695,14 +698,22 @@ private fun HomeRailSection(
                 items = rail.items,
                 key = { index, item -> "${index}_${item.subjectId}" },
             ) { _, item ->
-                HomePosterCard(item = item, onClick = { onOpen(item) })
+                HomePosterCard(
+                    item = item,
+                    onClick = { onOpen(item) },
+                    onDownload = { onDownload(item) },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HomePosterCard(item: SubjectBrief, onClick: () -> Unit) {
+private fun HomePosterCard(
+    item: SubjectBrief,
+    onClick: () -> Unit,
+    onDownload: ((SubjectBrief) -> Unit)? = null,
+) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -748,6 +759,15 @@ private fun HomePosterCard(item: SubjectBrief, onClick: () -> Unit) {
                     .align(Alignment.TopStart)
                     .padding(8.dp),
             )
+            onDownload?.let { download ->
+                DownloadPill(
+                    item = item,
+                    onDownload = download,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                )
+            }
 
             Box(
                 modifier = Modifier
