@@ -13,6 +13,7 @@ data class DownloadItem(
     val downloadedBytes: Long,
     val totalBytes: Long,
     val localUri: String?,
+    val reason: Int = 0,
 ) {
     val progress: Float
         get() = if (totalBytes > 0) {
@@ -21,8 +22,20 @@ data class DownloadItem(
             0f
         }
 
+    val hasSizes: Boolean get() = totalBytes > 0
+
+    val percent: Int get() = (progress * 100).toInt()
+
     val isComplete: Boolean
         get() = status == DownloadManager.STATUS_SUCCESSFUL
+
+    val isFailed: Boolean
+        get() = status == DownloadManager.STATUS_FAILED
+
+    val isActive: Boolean
+        get() = status == DownloadManager.STATUS_RUNNING ||
+            status == DownloadManager.STATUS_PENDING ||
+            status == DownloadManager.STATUS_PAUSED
 }
 
 /**
@@ -37,6 +50,19 @@ class Downloads(context: Context) {
     private val appContext = context.applicationContext
     private val manager =
         appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+
+    /** Which downloads belong to this app — SharedPreferences keeps their ids. */
+    private val prefs = appContext.getSharedPreferences(
+        "moviebox_downloads",
+        Context.MODE_PRIVATE,
+    )
+
+    private fun trackedIds(): MutableSet<String> =
+        (prefs.getStringSet("ids", emptySet()) ?: emptySet()).toMutableSet()
+
+    private fun setTrackedIds(ids: Set<String>) {
+        prefs.edit().putStringSet("ids", HashSet(ids)).apply()
+    }
 
     fun enqueue(
         title: String,
@@ -57,11 +83,18 @@ class Downloads(context: Context) {
             )
 
         headers.forEach { (key, value) -> request.addRequestHeader(key, value) }
-        return runCatching { manager.enqueue(request) }.getOrNull()
+        val id = runCatching { manager.enqueue(request) }.getOrNull() ?: return null
+        setTrackedIds(trackedIds() + id.toString())
+        return id
     }
 
+    /** This app's downloads only — the system queue holds other apps' files too. */
     fun items(): List<DownloadItem> {
-        val cursor = manager.query(DownloadManager.Query())
+        val ids = trackedIds().mapNotNull { it.toLongOrNull() }
+        if (ids.isEmpty()) return emptyList()
+        val cursor = manager.query(
+            DownloadManager.Query().setFilterById(*ids.toLongArray())
+        )
         cursor.use { c ->
             val idColumn = c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)
             val titleColumn = c.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE)
@@ -71,8 +104,9 @@ class Downloads(context: Context) {
             val totalColumn =
                 c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
             val uriColumn = c.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)
+            val reasonColumn = c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)
 
-            return buildList {
+            val found = buildList {
                 while (c.moveToNext()) {
                     add(
                         DownloadItem(
@@ -82,14 +116,19 @@ class Downloads(context: Context) {
                             downloadedBytes = c.getLong(bytesColumn),
                             totalBytes = c.getLong(totalColumn),
                             localUri = c.getString(uriColumn),
+                            reason = c.getInt(reasonColumn),
                         ),
                     )
                 }
             }
+            // Forget the ids the system no longer knows about.
+            setTrackedIds(found.map { it.id.toString() }.toSet())
+            return found
         }
     }
 
     fun delete(id: Long) {
         runCatching { manager.remove(id) }
+        setTrackedIds(trackedIds() - id.toString())
     }
 }

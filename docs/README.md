@@ -1316,10 +1316,16 @@ preferred quality, falling back to the closest available rendition), then hands 
 signed MP4 URL and headers to Android's system `DownloadManager`. The file name is
 `moviebox_<id>_s<se>e<ep>_<res>p.mp4`.
 
-- Open **Downloads** (bottom navigation) to see the queue.
-- Each row shows progress, size, status and a play button when complete.
-- Delete removes the download.
-- The system notification shows progress and completion.
+- **Downloads** is a dedicated tab in the bottom navigation (between TV and Search).
+  Every row groups under *Downloading* / *Failed* / *Downloaded*: title, status
+  (`Downloading · 45%`), bytes done vs total, and a determinate progress bar; a
+  completed row shows the final size and a **Play** button; a failed row shows the
+  reason (`not enough space`, …). The tab only shows downloads started by this app
+  (ids tracked in `SharedPreferences`) — it does not list the system queue.
+- After starting a download the app shows “Download started — see Downloads” with a
+  **View** action that jumps straight to the tab.
+- Delete removes the download (file and queue entry).
+- The system notification shows progress and completion too.
 
 Limitations:
 

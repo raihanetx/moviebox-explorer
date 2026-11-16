@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -128,6 +129,7 @@ private val TOP_DESTINATIONS = listOf(
     TopDestination("movies", "Movies", Icons.Default.PlayArrow),
     TopDestination("animation", "Animation", Icons.Default.PlayArrow),
     TopDestination("tv", "TV", Icons.Default.Favorite),
+    TopDestination("downloads", "Downloads", Icons.Default.ShoppingCart),
     TopDestination("search", "Search", Icons.Default.Search),
 )
 
@@ -325,6 +327,7 @@ private fun MovieBoxApp() {
                         onEnableAdult = { settings.showAdultContent = true },
                         onBack = { navController.popBackStack() },
                         autoOpenDownload = autoDownload,
+                        onOpenDownloads = { navController.navigate("downloads") },
                         onPlayEpisode = { source, label ->
                             PlaybackHolder.set(source)
                             val ready = viewModel.state.value as? DetailUiState.Ready

@@ -47,6 +47,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -110,6 +111,7 @@ fun DetailScreen(
     onPlayEpisode: (PlaybackSource, String) -> Unit,
     onPlayTrailer: () -> Unit,
     onOpen: (SubjectBrief) -> Unit,
+    onOpenDownloads: () -> Unit,
     autoOpenDownload: Boolean = false,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -168,6 +170,14 @@ fun DetailScreen(
             fileName = request.fileName,
         )
         viewModel.clearDownload()
+        val result = snackbarHostState.showSnackbar(
+            message = "Download started — see Downloads",
+            actionLabel = "View",
+            withDismissAction = true,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            onOpenDownloads()
+        }
     }
 
     LaunchedEffect(playback) {
@@ -236,7 +246,7 @@ fun DetailScreen(
                     showDownload = false
                     downloaded = true
                     scope.launch {
-                        snackbarHostState.showSnackbar("Download started")
+                        snackbarHostState.showSnackbar("Starting download…")
                     }
                 },
                 seasonsOf = viewModel::seasonsOf,
