@@ -292,7 +292,9 @@ moviebox-explorer/
 │       │   ├── MainActivity.kt  # theme, nav host, bottom bar, settings dialog
 │       │   ├── data/
 │       │   │   ├── AppSettings.kt  # SharedPreferences: API host, adult flag, revision
-│       │   │   └── Downloads.kt    # Android DownloadManager wrapper
+│       │   │   ├── Downloads.kt    # Android DownloadManager wrapper
+│       │   │   ├── HomeCache.kt    # persistent home payload (filesDir/home_cache.json)
+│       │   │   └── GridCache.kt    # SWR cache for the catalog grids (filesDir/grid_cache.json)
 │       │   └── ui/
 │       │       ├── HomeScreen.kt       # modern home: hero, platforms, rails
 │       │       ├── HomeViewModel.kt    # loads homeRows → HomeUiState
@@ -833,7 +835,10 @@ track’s season number when the episode count matches. That fixes records like
 
 #### Caching
 
-- `homeCache` — one `HomePage` per repository instance.
+- `homeCache` — one `HomePage` per repository instance (disk-persistent; instant on relaunch).
+- `gridCache` — persistent JSON for catalog grids (`filesDir/grid_cache.json`, 10 min TTL,
+  12 entries). The catalog tabs are shown from cache instantly and revalidated in the
+  background.
 - `ssrCache` — subjects read from server-rendered pages.
 - `MovieBoxApi.session` — one H5 token.
 - `MobileApi.sessions` — one token per mobile host.
@@ -912,6 +917,14 @@ cache makes a second open ~0 ms.
 The full payload is also cached on disk (`filesDir/home_cache.json`). The next launch
 renders the cached hero, platforms and every rail immediately, then refreshes in the
 background and replaces the cache. No rows are dropped to make the first paint faster.
+
+The catalog tabs (Movies / TV / Animation) do the same via `grid_cache.json`: the grid
+is rendered from cache the moment you open the tab, and refreshed silently behind the
+scenes (SWR). The first open on a fresh install still pays the network; returning to a
+tab within 10 minutes is effectively instant. Posters are prefetched in the grid, so
+covers appear before you scroll. Mirror payloads are raced in parallel and the first
+answer wins, so a slow mirror never adds latency to the fast path (measured: second
+fetch of the same payload ~0.6 s vs ~3.5 s cold in the smoketest).
 
 The home payload has:
 
