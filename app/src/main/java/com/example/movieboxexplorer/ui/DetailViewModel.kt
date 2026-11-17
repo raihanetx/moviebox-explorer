@@ -241,6 +241,7 @@ class DetailViewModel(
                             subjectId = selection.language.subjectId.ifBlank { subjectId },
                             preferredResolution = quality,
                             isMovie = ready?.info?.isMovie ?: false,
+                            coverUrl = ready?.info?.subject?.cover?.url.orEmpty(),
                         ),
                     )
                     _playback.value = PlaybackUiState.Idle

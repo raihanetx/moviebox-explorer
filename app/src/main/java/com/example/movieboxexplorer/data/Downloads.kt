@@ -31,6 +31,8 @@ data class DownloadMeta(
     val pausedBytes: Long = 0,
     val pausedTotal: Long = 0,
     val isMovie: Boolean = false,
+    /** Poster URL — shown as the thumbnail in the Downloads tab. */
+    val coverUrl: String = "",
 )
 
 /** One item shown in the Downloads tab. */

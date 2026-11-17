@@ -48,6 +48,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import com.example.movieboxexplorer.data.DownloadItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -221,21 +223,37 @@ private fun DownloadRow(
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            // Title + quality above the bar.
-            Text(
-                text = item.displayTitle,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.displaySubtitle.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = item.displaySubtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Poster — so the row is identifiable at a glance.
+                AsyncImage(
+                    model = item.meta.coverUrl.takeIf { it.isNotBlank() },
+                    contentDescription = item.displayTitle,
+                    modifier = Modifier
+                        .size(width = 54.dp, height = 76.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Crop,
                 )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.displayTitle,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (item.displaySubtitle.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = item.displaySubtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(10.dp))
 
