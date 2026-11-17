@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.movieboxexplorer.data.CatalogGrouper
 import com.example.movieboxexplorer.data.LanguageFilter
 import com.example.movieboxexplorer.data.LanguageInfo
 import com.example.movieboxexplorer.data.DownloadMeta
@@ -93,7 +94,7 @@ class DetailViewModel(
 
         viewModelScope.launch {
             runCatching { repository.related(subjectId) }
-                .onSuccess { _related.value = it }
+                .onSuccess { _related.value = CatalogGrouper.dedupeForDisplay(it) }
             }
     }
 

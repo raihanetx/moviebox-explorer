@@ -105,6 +105,7 @@ class HomeViewModel(
             .filter { it.type == "BANNER" }
             .flatMap { section -> section.banner?.items.orEmpty() }
             .mapNotNull { item -> item.subject?.takeIf { it.detailPath.isNotBlank() } }
+            .let { CatalogGrouper.dedupeForDisplay(it) }
             .distinctBy { it.subjectId }
 
         val rails = operatingList
