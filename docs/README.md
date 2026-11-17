@@ -1100,6 +1100,13 @@ trending-rows catalog is kept for the home rails but no longer drives the tab.
 - Suggestions come from `POST /subject/search-suggest`. The panel is capped at
   five entries / 232 dp, is scrollable, and is cleared once the search is committed,
   so it never pushes the results list off-screen.
+- Language variants of the same upload are collapsed into one card by
+  `CatalogGrouper.dedupeForDisplay()` (home rails, ranking, grids, search results).
+  Guards: same normalized title (language brackets and season-pack suffixes stripped)
+  **and** same `subjectType`, same `countryName`, at least one shared genre token.
+  The cluster keeps the record with a usable `detailPath`, `hasResource`, no language
+  bracket, an IMDb value and the lower risk flag. Dubs stay one tap away inside the
+  title page.
 - Tapping a result opens that exact record (`resolveDetailTarget`). When the tapped
   record has no `detailPath` — the mobile search returns subjects with a blank path —
   the app looks up the **same subjectId** and derives the slug from the mobile detail

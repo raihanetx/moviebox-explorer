@@ -360,13 +360,17 @@ fun main(args: Array<String>) = runBlocking {
         println("=== Mobile search: $term ===")
         val mobileItems = mobileApi.searchSubjects(term, perPage = 8)
         mobileItems.forEachIndexed { i, it ->
-            println("$i ${it.title} | id=${it.subjectId} | path=\"${it.detailPath}\" | type=${it.subjectType} | risk=${it.webHighRisk}")
+            println("$i ${it.title} | id=${it.subjectId} | path=\"${it.detailPath}\" | type=${it.subjectType} | risk=${it.webHighRisk} | genre=${it.genre} | country=${it.countryName} | year=${it.releaseDate} | dubs=${it.dubs.size}")
         }
         println("=== Tap simulation (resolveDetailTarget) ===")
         val repo = MovieBoxRepository(MovieBoxApi(siteHosts = listOf("themoviebox.xyz")))
         mobileItems.take(4).forEach { item ->
             val target = repo.resolveDetailTarget(item)
             println("tap ${item.title} -> path=\"${target.detailPath}\" id=${target.subjectId}")
+        }
+        println("=== After display dedup ===")
+        CatalogGrouper.dedupeForDisplay(mobileItems).forEachIndexed { i, it ->
+            println("$i ${it.title} | id=${it.subjectId}")
         }
         h5Api.close()
         mobileApi.close()

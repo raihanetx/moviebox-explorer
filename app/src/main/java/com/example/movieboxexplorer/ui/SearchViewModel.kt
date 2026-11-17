@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.movieboxexplorer.data.CatalogGrouper
 import com.example.movieboxexplorer.data.EveryoneSearchPage
 import com.example.movieboxexplorer.data.MovieBoxRepository
 import com.example.movieboxexplorer.data.SearchCount
@@ -187,7 +188,7 @@ class SearchViewModel(private val repository: MovieBoxRepository) : ViewModel() 
             .distinctBy { it.subjectId.ifBlank { it.detailPath } }
 
         _state.value = SearchUiState.Results(
-            items = merged,
+            items = CatalogGrouper.dedupeForDisplay(merged),
             keyword = keyword,
             counts = result.counts,
             hasMore = result.pager?.hasMore == true,

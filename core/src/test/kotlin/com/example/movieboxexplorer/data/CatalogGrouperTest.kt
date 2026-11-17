@@ -87,6 +87,128 @@ class CatalogGrouperTest {
         assertEquals(3, groups.size)
     }
 
+    private fun fullSubject(
+        title: String,
+        id: String,
+        detailPath: String = "",
+        subjectType: Int = 2,
+        country: String = "",
+        genre: String = "",
+        hasResource: Boolean = true,
+        webHighRisk: Boolean = false,
+        imdb: String = "",
+    ) = SubjectBrief(
+        subjectId = id,
+        title = title,
+        detailPath = detailPath,
+        subjectType = subjectType,
+        countryName = country,
+        genre = genre,
+        hasResource = hasResource,
+        webHighRisk = webHighRisk,
+        imdbRatingValue = imdb,
+    )
+
+    @Test
+    fun `language variants collapse into one card`() {
+        val result = CatalogGrouper.dedupeForDisplay(
+            listOf(
+                fullSubject("Black Clover S1-S2", "master", detailPath = "black-clover-x"),
+                fullSubject("Black Clover [English]", "english"),
+                fullSubject("Black Clover [Hindi]", "hindi"),
+            ),
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("master", result.single().subjectId)
+    }
+
+    @Test
+    fun `the record without a language tag wins over a tagged dub`() {
+        val result = CatalogGrouper.dedupeForDisplay(
+            listOf(
+                fullSubject("Attack on Titan [English]", "english",
+                    detailPath = "aot-english-x", country = "Japan", genre = "Anime, Action"),
+                fullSubject("Attack on Titan", "japanese",
+                    detailPath = "aot-x", country = "Japan", genre = "Anime, Action"),
+            ),
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("japanese", result.single().subjectId)
+    }
+
+    @Test
+    fun `same title but different country stays separate`() {
+        val result = CatalogGrouper.dedupeForDisplay(
+            listOf(
+                fullSubject("Attack on Titan", "us", subjectType = 1,
+                    country = "United States", genre = "Action, Adventure"),
+                fullSubject("Attack on Titan", "jp", subjectType = 2,
+                    country = "Japan", genre = "Anime, Action"),
+            ),
+        )
+
+        assertEquals(2, result.size)
+    }
+
+    @Test
+    fun `same title but different genre stays separate`() {
+        val result = CatalogGrouper.dedupeForDisplay(
+            listOf(
+                fullSubject("Crimson", "drama", genre = "Drama, Romance", country = "Japan"),
+                fullSubject("Crimson", "action", genre = "Action, Thriller", country = "Japan"),
+            ),
+        )
+
+        assertEquals(2, result.size)
+    }
+
+    @Test
+    fun `duplicate uploads of the same dub collapse`() {
+        val result = CatalogGrouper.dedupeForDisplay(
+            listOf(
+                fullSubject("Attack on Titan: Chronicle [English]", "en",
+                    detailPath = "chronicle-en-x", country = "Japan", genre = "Anime, Action",
+                    webHighRisk = true),
+                fullSubject("Attack on Titan: Chronicle", "a",
+                    detailPath = "chronicle-a-x", country = "Japan", genre = "Anime, Action"),
+                fullSubject("Attack on Titan: Chronicle", "b",
+                    detailPath = "chronicle-b-x", country = "Japan", genre = "Anime, Action"),
+            ),
+        )
+
+        assertEquals(1, result.size)
+        assertTrue(result.single().detailPath.isNotBlank())
+    }
+
+    @Test
+    fun `unrelated titles are left alone`() {
+        val result = CatalogGrouper.dedupeForDisplay(
+            listOf(
+                fullSubject("Black Clover", "bc", genre = "Anime, Action", country = "Japan"),
+                fullSubject("Black Torch", "bt", genre = "Anime, Action", country = "Japan"),
+                fullSubject("Frieren", "fr", genre = "Anime, Adventure", country = "Japan"),
+            ),
+        )
+
+        assertEquals(3, result.size)
+    }
+
+    @Test
+    fun `the order of first appearance is preserved`() {
+        val result = CatalogGrouper.dedupeForDisplay(
+            listOf(
+                fullSubject("Zebra [English]", "z2"),
+                fullSubject("Mango [English]", "m2"),
+                fullSubject("Zebra", "z1", detailPath = "zebra-x"),
+                fullSubject("Mango", "m1", detailPath = "mango-x"),
+            ),
+        )
+
+        assertEquals(listOf("z1", "m1"), result.map { it.subjectId })
+    }
+
     @Test
     fun `the canonical record is the one with a detail path`() {
         val groups = CatalogGrouper.group(

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.movieboxexplorer.data.CatalogGrouper
 import com.example.movieboxexplorer.data.HomeCache
 import com.example.movieboxexplorer.data.HomePage
 import com.example.movieboxexplorer.data.MovieBoxRepository
@@ -113,7 +114,7 @@ class HomeViewModel(
             .map { section ->
                 HomeRail(
                     title = section.title.ifBlank { "Featured" },
-                    items = section.subjects,
+                    items = CatalogGrouper.dedupeForDisplay(section.subjects),
                     kind = if (section.type == "APPOINTMENT_LIST") {
                         HomeRailKind.COMING_SOON
                     } else {

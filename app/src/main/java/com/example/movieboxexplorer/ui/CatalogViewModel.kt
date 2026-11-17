@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.movieboxexplorer.data.CatalogGrouper
 import com.example.movieboxexplorer.data.CatalogContent
 import com.example.movieboxexplorer.data.CatalogFilter
 import com.example.movieboxexplorer.data.CatalogGrid
@@ -70,7 +71,7 @@ class CatalogViewModel(
             _state.value = CatalogUiState.Ready(
                 content = CatalogContent.Grid(
                     CatalogGrid(
-                        items = content.grid.items + next.items,
+                        items = CatalogGrouper.dedupeForDisplay(content.grid.items + next.items),
                         hasMore = next.hasMore,
                         nextPage = next.nextPage,
                     )
@@ -100,13 +101,16 @@ class CatalogViewModel(
             // The movies tab is the website's "all films" browser — one flat poster
             // grid with the site's own filter bar, not the trending rows.
             CatalogKind.MOVIES ->
-                CatalogContent.Grid(repository.filmGrid(host, page, filter))
+                CatalogContent.Grid(repository.filmGrid(host, page, filter).deduped())
             // The TV and animation catalogs are flat poster grids on the website.
             CatalogKind.ANIMATED ->
-                CatalogContent.Grid(fetchGrid(page, filter))
+                CatalogContent.Grid(fetchGrid(page, filter).deduped())
             CatalogKind.TV ->
-                CatalogContent.Grid(fetchGrid(page, filter))
+                CatalogContent.Grid(fetchGrid(page, filter).deduped())
         }
+
+    private fun CatalogGrid.deduped(): CatalogGrid =
+        copy(items = CatalogGrouper.dedupeForDisplay(items))
 
     private suspend fun fetchGrid(page: Int, filter: CatalogFilter): CatalogGrid =
         when (kind) {
