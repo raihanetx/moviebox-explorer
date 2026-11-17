@@ -1,0 +1,355 @@
+package com.example.movieboxexplorer
+
+import android.app.Activity
+import android.net.Uri
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import coil.Coil
+import coil.ImageLoader
+import com.example.movieboxexplorer.data.AppSettings
+import com.example.movieboxexplorer.data.Downloads
+import com.example.movieboxexplorer.data.GridCache
+import com.example.movieboxexplorer.data.HomeCache
+import com.example.movieboxexplorer.data.MovieBoxApi
+import com.example.movieboxexplorer.data.MovieBoxRepository
+import com.example.movieboxexplorer.data.SubjectBrief
+import com.example.movieboxexplorer.ui.CatalogKind
+import com.example.movieboxexplorer.ui.AdultGateDialog
+import com.example.movieboxexplorer.ui.DEMO_VIDEO
+import com.example.movieboxexplorer.ui.CatalogScreen
+import com.example.movieboxexplorer.ui.CatalogViewModel
+import com.example.movieboxexplorer.ui.DetailScreen
+import com.example.movieboxexplorer.ui.DetailUiState
+import com.example.movieboxexplorer.ui.DetailViewModel
+import com.example.movieboxexplorer.ui.DiagnosticsScreen
+import com.example.movieboxexplorer.ui.DiagnosticsViewModel
+import com.example.movieboxexplorer.ui.DownloadsScreen
+import com.example.movieboxexplorer.ui.DownloadsViewModel
+import com.example.movieboxexplorer.ui.HomeScreen
+import com.example.movieboxexplorer.ui.HomeViewModel
+import com.example.movieboxexplorer.ui.PlaybackHolder
+import com.example.movieboxexplorer.ui.PlayerScreen
+import com.example.movieboxexplorer.ui.RankingScreen
+import com.example.movieboxexplorer.ui.RankingViewModel
+import com.example.movieboxexplorer.ui.SearchScreen
+import com.example.movieboxexplorer.ui.SearchViewModel
+import com.example.movieboxexplorer.ui.theme.MovieBoxTheme
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+private data class TopDestination(
+    val route: String,
+    val label: String,
+    val icon: ImageVector,
+)
+
+private val TOP_DESTINATIONS = listOf(
+    TopDestination("home", "Home", Icons.Default.Home),
+    TopDestination("movies", "Movies", Icons.Default.PlayArrow),
+    TopDestination("animation", "Animation", Icons.Default.PlayArrow),
+    TopDestination("tv", "TV", Icons.Default.Favorite),
+    TopDestination("downloads", "Downloads", Icons.Default.ShoppingCart),
+    TopDestination("search", "Search", Icons.Default.Search),
+)
+
+
+@Composable
+internal fun MovieBoxApp() {
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
+    val homeCache = remember { HomeCache(context) }
+    val gridCache = remember { GridCache(context) }
+    val downloads = remember { Downloads(context) }
+    val revision by settings.revision.collectAsStateWithLifecycle()
+    val ageGateAccepted by settings.ageGateAcceptedFlow.collectAsStateWithLifecycle()
+    val allowAdult by settings.adultContentFlow.collectAsStateWithLifecycle()
+
+    key(revision) {
+        val repository = remember(revision) {
+            MovieBoxRepository(MovieBoxApi(settings.apiBase, settings.siteHosts(), "https://${settings.siteHost}"))
+        }
+        val navController = rememberNavController()
+        val openDetailScope = rememberCoroutineScope()
+
+        // Local function (not a val) so call sites can pass download = true.
+        fun openDetail(subject: SubjectBrief, download: Boolean = false) {
+            // Navigate to the exact record the user tapped. Keyword re-ranking
+            // ("best match") would silently swap in a different title (the "tap
+            // Black Clover, open another show" bug). The fallback only resolves
+            // the *same* subjectId when the tapped record carries no detailPath.
+            fun target(path: String, id: String) =
+                if (download) "detail/${Uri.encode(path)}/$id?download=true"
+                else "detail/${Uri.encode(path)}/$id"
+
+            if (subject.detailPath.isNotBlank() && subject.subjectId.isNotBlank()) {
+                navController.navigate(target(subject.detailPath, subject.subjectId))
+            } else {
+                openDetailScope.launch {
+                    val resolved = runCatching {
+                        repository.resolveDetailTarget(subject)
+                    }.getOrDefault(subject)
+                    navController.navigate(target(resolved.detailPath, resolved.subjectId))
+                }
+            }
+        }
+        val backStack by navController.currentBackStackEntryAsState()
+        val currentRoute = backStack?.destination?.route
+        var showSettings by remember { mutableStateOf(false) }
+
+        val host = settings.siteHost
+
+        if (!ageGateAccepted) {
+            AdultGateDialog(
+                onAccept = { settings.ageGateAccepted = true },
+                onDecline = { (context as? Activity)?.finish() },
+            )
+        }
+
+        Scaffold(
+            bottomBar = {
+                if (currentRoute in TOP_DESTINATIONS.map { it.route }) {
+                    NavigationBar {
+                        TOP_DESTINATIONS.forEach { destination ->
+                            NavigationBarItem(
+                                selected = currentRoute == destination.route,
+                                onClick = {
+                                    navController.navigate(destination.route) {
+                                        popUpTo("home") { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                icon = { Icon(destination.icon, contentDescription = destination.label) },
+                                label = { Text(destination.label) },
+                            )
+                        }
+                    }
+                }
+            },
+        ) { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = "home",
+                modifier = Modifier.padding(padding),
+            ) {
+                composable("home") {
+                    val viewModel: HomeViewModel = viewModel(
+                        factory = HomeViewModel.factory(repository, host, homeCache),
+                    )
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onOpen = { subject -> openDetail(subject) },
+                        onSearch = { navController.navigate("search") },
+                        onOpenRanking = { navController.navigate("ranking") },
+                        onOpenSettings = { showSettings = true },
+                        onBrowse = { route -> navController.navigate(route) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
+                    )
+                }
+
+                composable("movies") {
+                    val viewModel: CatalogViewModel = viewModel(
+                        factory = CatalogViewModel.factory(repository, host, CatalogKind.MOVIES, gridCache),
+                    )
+                    CatalogScreen(
+                        viewModel = viewModel,
+                        title = "Movies",
+                        onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
+                    )
+                }
+
+                composable("animation") {
+                    val viewModel: CatalogViewModel = viewModel(
+                        factory = CatalogViewModel.factory(repository, host, CatalogKind.ANIMATED, gridCache),
+                    )
+                    CatalogScreen(
+                        viewModel = viewModel,
+                        title = "Animation",
+                        onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
+                    )
+                }
+
+                composable("tv") {
+                    val viewModel: CatalogViewModel = viewModel(
+                        factory = CatalogViewModel.factory(repository, host, CatalogKind.TV, gridCache),
+                    )
+                    CatalogScreen(
+                        viewModel = viewModel,
+                        title = "TV Shows",
+                        onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
+                    )
+                }
+
+                composable("downloads") {
+                    val viewModel: DownloadsViewModel = viewModel(
+                        factory = DownloadsViewModel.factory(downloads, repository),
+                    )
+                    DownloadsScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+
+                composable("ranking") {
+                    val viewModel: RankingViewModel = viewModel(
+                        factory = RankingViewModel.factory(repository),
+                    )
+                    RankingScreen(
+                        viewModel = viewModel,
+                        onOpen = { subject -> openDetail(subject) },
+                        onDownload = { subject -> openDetail(subject, download = true) },
+                    )
+                }
+
+                composable("diagnostics") {
+                    val viewModel: DiagnosticsViewModel = viewModel(
+                        factory = DiagnosticsViewModel.factory(repository, settings, homeCache),
+                    )
+                    DiagnosticsScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+
+                composable("search") {
+                    val viewModel: SearchViewModel = viewModel(
+                        factory = SearchViewModel.factory(repository),
+                    )
+                    SearchScreen(
+                        viewModel = viewModel,
+                        onOpen = { subject -> openDetail(subject) },
+                        onOpenSettings = { showSettings = true },
+                    )
+                }
+
+                composable(
+                    route = "detail/{path}/{id}?download={download}",
+                    arguments = listOf(
+                        navArgument("path") { type = NavType.StringType },
+                        navArgument("id") { type = NavType.StringType },
+                        navArgument("download") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        },
+                    ),
+                ) { entry ->
+                    val path = entry.arguments?.getString("path").orEmpty()
+                    val id = entry.arguments?.getString("id").orEmpty()
+                    val autoDownload = entry.arguments?.getBoolean("download") ?: false
+                    val viewModel: DetailViewModel = viewModel(
+                        factory = DetailViewModel.factory(repository, path, id),
+                    )
+                    DetailScreen(
+                        viewModel = viewModel,
+                        allowAdult = allowAdult,
+                        onEnableAdult = { settings.showAdultContent = true },
+                        onBack = { navController.popBackStack() },
+                        autoOpenDownload = autoDownload,
+                        onOpenDownloads = { navController.navigate("downloads") },
+                        onPlayEpisode = { source, label ->
+                            PlaybackHolder.set(source)
+                            val ready = viewModel.state.value as? DetailUiState.Ready
+                            val title = ready?.info?.subject?.title.orEmpty()
+                            navController.navigate("player/episode?title=${Uri.encode(title)}")
+                        },
+                        onPlayTrailer = {
+                            val ready = viewModel.state.value as? DetailUiState.Ready
+                            val title = ready?.info?.subject?.title.orEmpty()
+                            val trailer = ready?.info?.subject?.trailer?.videoAddress?.url
+                            val video = trailer?.takeIf { it.isNotBlank() } ?: DEMO_VIDEO
+                            navController.navigate(
+                                "player/trailer?title=${Uri.encode(title)}&video=${Uri.encode(video)}"
+                            )
+                        },
+                        onOpen = { subject -> openDetail(subject) },
+                    )
+                }
+
+                composable(
+                    route = "player/{kind}?title={title}&video={video}",
+                    arguments = listOf(
+                        navArgument("kind") { type = NavType.StringType; defaultValue = "trailer" },
+                        navArgument("title") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("video") { type = NavType.StringType; defaultValue = "" },
+                    ),
+                ) { entry ->
+                    val kind = entry.arguments?.getString("kind").orEmpty()
+                    val title = entry.arguments?.getString("title").orEmpty()
+                    val video = entry.arguments?.getString("video").orEmpty()
+                    val source by PlaybackHolder.source.collectAsStateWithLifecycle()
+                    val episode = kind == "episode"
+                    PlayerScreen(
+                        title = title,
+                        videoUrl = (if (episode) source?.url.orEmpty() else video).ifBlank { DEMO_VIDEO },
+                        headers = if (episode) source?.headers.orEmpty() else emptyMap(),
+                        subtitle = if (episode) "Now playing: episode" else "Now playing: trailer / demo",
+                        onBack = {
+                            PlaybackHolder.clear()
+                            navController.popBackStack()
+                        },
+                    )
+                }
+            }
+        }
+
+        if (showSettings) {
+            SettingsDialog(
+                settings = settings,
+                onDismiss = { showSettings = false },
+                onOpenDiagnostics = {
+                    showSettings = false
+                    navController.navigate("diagnostics")
+                },
+                onOpenDownloads = {
+                    showSettings = false
+                    navController.navigate("downloads")
+                },
+            )
+        }
+    }
+}

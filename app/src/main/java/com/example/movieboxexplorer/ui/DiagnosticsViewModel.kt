@@ -1,4 +1,5 @@
 package com.example.movieboxexplorer.ui
+import com.example.movieboxexplorer.data.diagnostics
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider

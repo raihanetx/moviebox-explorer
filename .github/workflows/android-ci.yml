@@ -19,6 +19,9 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      - name: Kotlin file-size policy
+        run: scripts/check-file-size.sh
+
       - name: Unit tests and debug APK
         run: gradle :core:test :app:assembleDebug
 

@@ -289,20 +289,36 @@ moviebox-explorer/
 │   └── src/main/
 │       ├── AndroidManifest.xml  # INTERNET permission, MainActivity
 │       ├── java/com/example/movieboxexplorer/
-│       │   ├── MainActivity.kt  # theme, nav host, bottom bar, settings dialog
+│       │   ├── MainActivity.kt  # theme + component mount (60 lines)
+│       │   ├── MovieBoxApp.kt   # nav host, bottom bar, settings routing
+│       │   ├── SettingsDialog.kt# theme, API host/revision dialog
 │       │   ├── data/
 │       │   │   ├── AppSettings.kt  # SharedPreferences: API host, adult flag, revision
 │       │   │   ├── Downloads.kt    # Android DownloadManager wrapper
 │       │   │   ├── HomeCache.kt    # persistent home payload (filesDir/home_cache.json)
 │       │   │   └── GridCache.kt    # SWR cache for the catalog grids (filesDir/grid_cache.json)
 │       │   └── ui/
-│       │       ├── HomeScreen.kt       # modern home: hero, platforms, rails
+│       │       ├── HomeScreen.kt       # entry / state routing
+│       │       ├── HomeTopBar.kt       # top bar + search pill + profile button
+│       │       ├── HomeHero.kt         # full-bleed hero pager
+│       │       ├── HomeRails.kt        # horizontal rails + posters
+│       │       ├── HomeQuickBrowse.kt  # browse-grid + platform strip
+│       │       ├── HomeSkeleton.kt     # loading shimmer
 │       │       ├── HomeViewModel.kt    # loads homeRows → HomeUiState
 │       │       ├── CatalogScreen.kt    # catalog rows/grid + filter bar
 │       │       ├── CatalogViewModel.kt # Movies/TV/Animation data
-│       │       ├── SearchScreen.kt     # search + suggestions + tabs
+│       │       ├── CatalogGrid.kt      # responsive poster grid + load more
+│       │       ├── SearchScreen.kt     # search input row + type tabs
+│       │       ├── SearchIdle.kt       # history/trending chips, empty state
+│       │       ├── SearchResults.kt    # ranked results list
 │       │       ├── SearchViewModel.kt  # debounce, paging, suggestions
-│       │       ├── DetailScreen.kt     # poster, dubs, seasons, episodes, risk
+│       │       ├── DetailScreen.kt     # detail entry / scaffold
+│       │       ├── DetailHero.kt       # full-bleed artwork + meta chips
+│       │       ├── DetailActions.kt    # play / save / share buttons
+│       │       ├── DetailSheet.kt      # actions sheet + info sheet
+│       │       ├── DetailPickers.kt    # language / season / episode / quality pickers
+│       │       ├── DetailInfo.kt       # "i" info sheet (coverage report)
+│       │       ├── DetailPalette.kt    # shared dark palette for detail
 │       │       ├── DetailViewModel.kt  # loadTitle, episode selection, play
 │       │       ├── DiagnosticsScreen.kt    # in-app test report
 │       │       ├── DiagnosticsViewModel.kt # runs the checks
@@ -312,7 +328,9 @@ moviebox-explorer/
 │       │       ├── RankingViewModel.kt
 │       │       ├── PlayerScreen.kt     # Media3/ExoPlayer
 │       │       ├── PlaybackHolder.kt   # passes the resolved stream to the player
-│       │       ├── Components.kt       # poster cards, rows, grids, skeletons
+│       │       ├── PosterCards.kt      # base poster cards
+│       │       ├── Bits.kt             # badges, pills, chips
+│       │       ├── Components.kt       # row skeletons
 │       │       ├── AdultGate.kt        # one-time age gate + per-title block
 │       │       └── theme/Theme.kt      # MovieBox dark/light color scheme
 │       └── res/
@@ -331,10 +349,15 @@ moviebox-explorer/
 │       │   ├── CatalogValidator.kt  # cross-validation report
 │       │   ├── Diagnostics.kt       # CheckStatus, CheckResult, DiagnosticsReport
 │       │   ├── MobileModels.kt      # mobile response models
+│       │   ├── MobileConstants.kt   # shared endpoint prefixes / bootstrap params
 │       │   ├── MobileSigner.kt      # HMAC-MD5 request signer
-│       │   ├── MobileApi.kt         # mobile BFF client
-│       │   ├── MovieBoxApi.kt       # H5 BFF client
+│       │   ├── MobileApi.kt         # mobile BFF — session & transport
+│       │   ├── MobileCatalog.kt     # mobile BFF — search/detail/play endpoints
+│       │   ├── MovieBoxApi.kt       # H5 BFF — session & transport
+│       │   ├── MovieBoxCatalog.kt   # H5 BFF — listing/detail endpoints
+│       │   ├── MovieBoxPlayback.kt  # H5 BFF — /subject/play endpoint
 │       │   ├── MovieBoxRepository.kt# H5-first / mobile-fallback repository
+│       │   ├── MovieBoxRepositoryTitles.kt # loadTitle extension (H5 + mobile merge)
 │       │   ├── NuxtPayload.kt       # SSR `__NUXT_DATA__` reader
 │       │   ├── Playback.kt          # PlayData, PlayStream, rendition selection
 │       │   ├── RiskPolicy.kt        # RiskFlags / RiskLevel
@@ -350,14 +373,31 @@ moviebox-explorer/
 │
 ├── smoketest/
 │   ├── build.gradle.kts
-│   └── src/main/kotlin/com/example/movieboxexplorer/smoke/Main.kt
+│   └── src/main/kotlin/com/example/movieboxexplorer/smoke/
+│       ├── Main.kt                 # dispatch table + default title command
+│       ├── CatalogSmoke.kt         # catalog/filter/films/page commands
+│       ├── DiagnosticsSmoke.kt     # mobile/SSR/rows diagnostics commands
+│       ├── PlaybackSmoke.kt        # episode playback check
+│       ├── VerifySmoke.kt          # audit-catalog/sweep/validate-* commands
+│       ├── HomeVerifySmoke.kt      # home-time/parts cold vs cached
+│       ├── CatalogStats.kt         # shared stats counter
+│       └── FilterSmoke.kt          # /web/film filter commands
 ├── scripts/
-│   └── emulator-check.sh       # one-command emulator diagnostics
+│   ├── emulator-check.sh       # one-command emulator diagnostics
+│   └── check-file-size.sh      # Kotlin 400/500-line policy enforcement
 ├── .github/workflows/android-ci.yml
 ├── dist/
 │   └── app-debug.apk           # built debug APK
 └── README.md                   # short pointer to ../docs/README.md
 ```
+
+### File-size policy
+
+Every Kotlin source file targets **400 lines** and is capped at **500** — enforced in CI
+by `scripts/check-file-size.sh`. When a file outgrows the cap, split by responsibility,
+not by arbitrary line count (one screen step / one API concern per file). Exceptions are
+allowed for declarative tables (`Models.kt`, ~420 lines of pure data classes) with the
+justification noted in review.
 
 The documentation lives in `docs/` — this file and `docs/HOME_UI_REDESIGN.md`. From the
 app root, that is `../docs/`.

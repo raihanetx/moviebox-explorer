@@ -42,25 +42,25 @@ import java.util.UUID
  * including the sorted query — so the URL is built before the signature is computed.
  */
 class MobileApi(
-    private val bases: List<String> = DEFAULT_BASES,
-    private val deviceId: String = randomHex(32),
+    internal val bases: List<String> = DEFAULT_BASES,
+    internal val deviceId: String = randomHex(32),
 ) {
 
-    private val jsonFormat = Json {
+    internal val jsonFormat = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
         isLenient = true
         encodeDefaults = false
     }
 
-    private val http = HttpClient(CIO) {
+    internal val http = HttpClient(CIO) {
         expectSuccess = false
         install(ContentNegotiation) { json(jsonFormat) }
         install(HttpTimeout) { requestTimeoutMillis = 8_000 }
     }
 
     /** One session token per host; the bootstrap token is host-scoped. */
-    private val sessions = LinkedHashMap<String, String>()
+    internal val sessions = LinkedHashMap<String, String>()
 
     /** Last HTTP status/body, for diagnostics (the client itself never throws). */
     @Volatile
@@ -74,7 +74,7 @@ class MobileApi(
     /** Requests an anonymous session and caches the token for [base]. */
     suspend fun session(base: String = bases.first()): String? {
         sessions[base]?.let { return it }
-        val url = buildUrl(base, BOOTSTRAP_PATH, BOOTSTRAP_QUERY)
+        val url = buildUrl(base, MobileConstants.BOOTSTRAP_PATH, MobileConstants.BOOTSTRAP_QUERY)
         val response = runCatching {
             http.get(url) { applyMobileHeaders(HttpMethod.Get, url, body = null, token = null) }
         }.getOrNull() ?: return null
@@ -86,258 +86,12 @@ class MobileApi(
 
     // ---------------------------------------------------------------- catalog
 
-    suspend fun search(
-        keyword: String,
-        page: Int = 1,
-        perPage: Int = 20,
-    ): MobileSearchPage {
-        val body = jsonFormat.encodeToString(
-            MobileSearchRequest.serializer(),
-            MobileSearchRequest(keyword = keyword, page = page, perPage = perPage),
-        )
-        for (base in bases) {
-            val text = postJson(base, "$MOBILE_PREFIX/subject-api/search", body) ?: continue
-            val envelope = decodeEnvelope(text, MobileSearchPage.serializer()) ?: continue
-            if (envelope.code == 0) return envelope.data ?: MobileSearchPage()
-        }
-        return MobileSearchPage()
-    }
-
-    /** [search] with the `subject` wrapper (or a bare subject) unwrapped. */
-    suspend fun searchSubjects(
-        keyword: String,
-        page: Int = 1,
-        perPage: Int = 20,
-    ): List<SubjectBrief> = parseSubjects(search(keyword, page, perPage).items)
-
-    suspend fun searchPage(
-        keyword: String,
-        page: Int = 1,
-        perPage: Int = 20,
-    ): SearchPage {
-        val result = search(keyword, page, perPage)
-        return SearchPage(pager = result.pager, items = parseSubjects(result.items))
-    }
-
-    suspend fun detail(subjectId: String): MobileDetail? {
-        if (subjectId.isBlank()) return null
-        for (base in bases) {
-            val text = getJson(
-                base,
-                "$MOBILE_PREFIX/subject-api/get",
-                mapOf("subjectId" to subjectId),
-            ) ?: continue
-            val envelope = decodeEnvelope(text, JsonElement.serializer()) ?: continue
-            if (envelope.code != 0) continue
-            val data = envelope.data as? JsonObject ?: continue
-
-            // Some builds wrap the record in `data.subject`; others return the
-            // subject fields directly under `data`.
-            val wrapped = data["subject"] as? JsonObject
-            val detail = if (wrapped != null) {
-                runCatching {
-                    jsonFormat.decodeFromJsonElement(MobileDetail.serializer(), data)
-                }.getOrNull()?.takeIf { it.subject?.subjectId?.isNotBlank() == true }
-                    ?.let { mobileDetail ->
-                        val subject = mobileDetail.subject!!
-                        mobileDetail.copy(
-                            subject = subject.copy(
-                                detailPath = subject.detailPath.ifBlank {
-                                    subject.detailUrl.trimEnd('/').substringAfterLast('/')
-                                },
-                            ),
-                        )
-                    }
-            } else {
-                val subject = runCatching {
-                    jsonFormat.decodeFromJsonElement(Subject.serializer(), data)
-                }.getOrNull()
-                subject
-                    ?.takeIf { it.subjectId.isNotBlank() }
-                    ?.let {
-                        MobileDetail(
-                            subject = it.copy(
-                                detailPath = it.detailPath.ifBlank {
-                                    it.detailUrl.trimEnd('/').substringAfterLast('/')
-                                },
-                            ),
-                        )
-                    }
-            }
-            if (detail?.subject != null) return detail
-        }
-        return null
-    }
-
-    suspend fun seasonInfo(subjectId: String): Resource? {
-        if (subjectId.isBlank()) return null
-        for (base in bases) {
-            val text = getJson(
-                base,
-                "$MOBILE_PREFIX/subject-api/season-info",
-                mapOf("subjectId" to subjectId),
-            ) ?: continue
-            val envelope = decodeEnvelope(text, MobileSeasonInfo.serializer()) ?: continue
-            if (envelope.code == 0) {
-                val resource = envelope.data?.toResource()
-                if (resource != null && resource.seasons.isNotEmpty()) return resource
-            }
-        }
-        return null
-    }
-
-    suspend fun dubInfo(subjectId: String): List<MobileDub> {
-        if (subjectId.isBlank()) return emptyList()
-        for (base in bases) {
-            val text = getJson(
-                base,
-                "$MOBILE_PREFIX/subject-api/dub-info",
-                mapOf("subjectId" to subjectId),
-            ) ?: continue
-            val envelope = decodeEnvelope(text, MobileDubInfo.serializer()) ?: continue
-            if (envelope.code == 0) {
-                val dubs = envelope.data?.dubs?.takeIf { it.isNotEmpty() }
-                    ?: envelope.data?.items
-                    ?: emptyList()
-                if (dubs.isNotEmpty()) return dubs
-            }
-        }
-        return emptyList()
-    }
-
-    suspend fun staffInfo(subjectId: String): List<Staff> {
-        if (subjectId.isBlank()) return emptyList()
-        for (base in bases) {
-            val text = getJson(
-                base,
-                "$MOBILE_PREFIX/subject-api/staff-info",
-                mapOf("subjectId" to subjectId),
-            ) ?: continue
-            val envelope = decodeEnvelope(text, MobileStaffPage.serializer()) ?: continue
-            if (envelope.code == 0) {
-                val staff = envelope.data?.stars?.takeIf { it.isNotEmpty() }
-                    ?: envelope.data?.items
-                    ?: emptyList()
-                if (staff.isNotEmpty()) return staff
-            }
-        }
-        return emptyList()
-    }
-
-    suspend fun recommend(
-        subjectId: String,
-        page: Int = 1,
-        perPage: Int = 12,
-    ): List<SubjectBrief> {
-        if (subjectId.isBlank()) return emptyList()
-        for (base in bases) {
-            for (path in RECOMMEND_PATHS) {
-                val text = getJson(
-                    base,
-                    path,
-                    mapOf(
-                        "subjectId" to subjectId,
-                        "page" to page.toString(),
-                        "perPage" to perPage.toString(),
-                    ),
-                ) ?: continue
-                val envelope = decodeEnvelope(text, MobileRecommendPage.serializer()) ?: continue
-                if (envelope.code == 0) {
-                    val subjects = parseSubjects(envelope.data?.items.orEmpty())
-                    if (subjects.isNotEmpty()) return subjects
-                }
-            }
-        }
-        return emptyList()
-    }
-
-    suspend fun rankingList(
-        categoryId: String,
-        page: Int = 1,
-        perPage: Int = 20,
-    ): MobileRankingPage {
-        for (base in bases) {
-            val text = getJson(
-                base,
-                "$MOBILE_PREFIX/tab/ranking-list",
-                mapOf(
-                    "tabId" to "0",
-                    "categoryType" to categoryId,
-                    "page" to page.toString(),
-                    "perPage" to perPage.toString(),
-                ),
-            ) ?: continue
-            val envelope = decodeEnvelope(text, MobileRankingPage.serializer()) ?: continue
-            if (envelope.code == 0) return envelope.data ?: MobileRankingPage()
-        }
-        return MobileRankingPage()
-    }
-
-    suspend fun rankingSubjects(
-        categoryId: String,
-        page: Int = 1,
-        perPage: Int = 20,
-    ): List<SubjectBrief> {
-        val page = rankingList(categoryId, page, perPage)
-        return parseSubjects(page.items.ifEmpty { page.subjectList })
-    }
-
-    suspend fun comments(
-        subjectId: String,
-        page: Int = 1,
-        perPage: Int = 20,
-    ): List<MobileComment> {
-        if (subjectId.isBlank()) return emptyList()
-        val body = jsonFormat.encodeToString(
-            MobileCommentRequest.serializer(),
-            MobileCommentRequest(subjectId, page, perPage),
-        )
-        for (base in bases) {
-            val text = postJson(base, "$MOBILE_PREFIX/subject-api/comment/list", body) ?: continue
-            val envelope = decodeEnvelope(text, MobileCommentPage.serializer()) ?: continue
-            if (envelope.code == 0) {
-                val comments = envelope.data?.items?.takeIf { it.isNotEmpty() }
-                    ?: envelope.data?.list
-                    ?: emptyList()
-                if (comments.isNotEmpty()) return comments
-            }
-        }
-        return emptyList()
-    }
-
-    /**
-     * The mobile play endpoint. The guide reports that it only returns promo
-     * renditions, so this is exposed for diagnostics rather than used for playback.
-     */
-    suspend fun playInfo(
-        subjectId: String,
-        season: Int = 1,
-        episode: Int = 1,
-        isVip: Boolean = false,
-    ): PlayData? {
-        if (subjectId.isBlank()) return null
-        for (base in bases) {
-            val text = getJson(
-                base,
-                "$MOBILE_PREFIX/subject-api/play-info",
-                mapOf(
-                    "subjectId" to subjectId,
-                    "se" to season.toString(),
-                    "ep" to episode.toString(),
-                    "isVip" to isVip.toString(),
-                ),
-            ) ?: continue
-            val envelope = decodeEnvelope(text, PlayData.serializer()) ?: continue
-            if (envelope.code == 0) return envelope.data
-        }
-        return null
-    }
 
     fun close() = http.close()
 
     // ---------------------------------------------------------------- internals
 
-    private suspend fun getJson(
+    internal suspend fun getJson(
         base: String,
         path: String,
         query: Map<String, String> = emptyMap(),
@@ -356,7 +110,7 @@ class MobileApi(
         return text.takeIf { it.isNotBlank() }
     }
 
-    private suspend fun postJson(base: String, path: String, body: String): String? {
+    internal suspend fun postJson(base: String, path: String, body: String): String? {
         val url = buildUrl(base, path)
         val token = session(base)
         val response = runCatching {
@@ -373,7 +127,7 @@ class MobileApi(
         return text.takeIf { it.isNotBlank() }
     }
 
-    private fun HttpRequestBuilder.applyMobileHeaders(
+    internal fun HttpRequestBuilder.applyMobileHeaders(
         method: HttpMethod,
         url: String,
         body: String?,
@@ -393,12 +147,12 @@ class MobileApi(
         }
     }
 
-    private fun captureToken(base: String, raw: String?) {
+    internal fun captureToken(base: String, raw: String?) {
         val token = parseToken(raw) ?: return
         sessions[base] = token
     }
 
-    private fun parseToken(raw: String?): String? {
+    internal fun parseToken(raw: String?): String? {
         val value = raw?.trim().orEmpty()
         if (value.isBlank()) return null
         if (value.startsWith("{")) {
@@ -413,14 +167,14 @@ class MobileApi(
         return value.takeIf { it.count { ch -> ch == '.' } >= 2 }
     }
 
-    private inline fun <reified T> decodeEnvelope(
+    internal inline fun <reified T> decodeEnvelope(
         text: String,
         serializer: KSerializer<T>,
     ): Envelope<T>? = runCatching {
         jsonFormat.decodeFromString(Envelope.serializer(serializer), text)
     }.getOrNull()
 
-    private fun parseSubjects(items: List<JsonElement>): List<SubjectBrief> =
+    internal fun parseSubjects(items: List<JsonElement>): List<SubjectBrief> =
         items.mapNotNull { item ->
             val objectItem = item as? JsonObject ?: return@mapNotNull null
             val subject = objectItem["subject"] as? JsonObject ?: objectItem
@@ -429,7 +183,7 @@ class MobileApi(
             }.getOrNull()?.takeIf { it.subjectId.isNotBlank() }
         }
 
-    private fun clientInfo(): String {
+    internal fun clientInfo(): String {
         val timezone = runCatching { ZoneId.systemDefault().id }.getOrDefault("UTC")
         val locale = Locale.getDefault()
         val region = locale.country.ifBlank { "IN" }
@@ -455,7 +209,7 @@ class MobileApi(
         }
     }
 
-    private fun buildUrl(base: String, path: String, query: Map<String, String> = emptyMap()): String {
+    internal fun buildUrl(base: String, path: String, query: Map<String, String> = emptyMap()): String {
         val root = base.trimEnd('/')
         if (query.isEmpty()) return root + path
         val encoded = query.entries.joinToString("&") { (key, value) -> "$key=$value" }
@@ -475,67 +229,10 @@ class MobileApi(
             "com.community.mbox.in/50020130 (Linux; U; Android 14; en_IN; Pixel 8; " +
                 "Build/UD1A.230803.041; Cronet/145.0.7582.0)"
 
-        private const val MOBILE_PREFIX = "/wefeed-mobile-bff"
-        private const val BOOTSTRAP_PATH = "$MOBILE_PREFIX/tab/ranking-list"
-        private val BOOTSTRAP_QUERY = mapOf(
-            "tabId" to "0",
-            "categoryType" to "4516404531735022304",
-            "page" to "1",
-            "perPage" to "1",
-        )
-
-        /** The guide names one path; some builds expose the list under another. */
-        private val RECOMMEND_PATHS = listOf(
-            "$MOBILE_PREFIX/subject-api/recommend",
-            "$MOBILE_PREFIX/subject-api/recommend/list",
-            "$MOBILE_PREFIX/subject-api/recommend-rec",
-        )
-
-        private fun randomHex(length: Int): String {
+        internal fun randomHex(length: Int): String {
             val bytes = ByteArray((length + 1) / 2)
             SecureRandom().nextBytes(bytes)
             return bytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }.take(length)
         }
     }
-}
-
-/** Normalises the mobile `season-info` quality labels into [Resource] seasons. */
-private fun MobileSeasonInfo.toResource(): Resource {
-    val seasons = seasons.map { season ->
-        val labels = season.resolutions.mapNotNull { element ->
-            when (element) {
-                is JsonPrimitive -> element.contentOrNull?.toIntOrNull()
-                is JsonObject -> (element["resolution"] as? JsonPrimitive)
-                    ?.contentOrNull
-                    ?.toIntOrNull()
-                else -> null
-            }
-        }
-        val resolutions = if (labels.isNotEmpty()) {
-            labels.map { Resolution(resolution = it, epNum = 0) }
-        } else {
-            season.resolutions.mapNotNull { element ->
-                (element as? JsonObject)?.let { objectElement ->
-                    val resolution = (objectElement["resolution"] as? JsonPrimitive)
-                        ?.contentOrNull
-                        ?.toIntOrNull()
-                        ?: return@mapNotNull null
-                    val epNum = (objectElement["epNum"] as? JsonPrimitive)
-                        ?.contentOrNull
-                        ?.toIntOrNull()
-                        ?: 0
-                    Resolution(resolution, epNum)
-                }
-            }
-        }
-        val maxEp = season.maxEp.takeIf { it > 0 }
-            ?: season.allEp.split(",").count { it.isNotBlank() }
-        Season(
-            se = season.se,
-            maxEp = maxEp,
-            allEp = season.allEp,
-            resolutions = resolutions,
-        )
-    }
-    return Resource(seasons = seasons)
 }

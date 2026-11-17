@@ -1,4 +1,32 @@
 package com.example.movieboxexplorer.data
+import com.example.movieboxexplorer.data.detail
+import com.example.movieboxexplorer.data.searchSubjects
+import com.example.movieboxexplorer.data.searchPage
+import com.example.movieboxexplorer.data.seasonInfo
+import com.example.movieboxexplorer.data.dubInfo
+import com.example.movieboxexplorer.data.staffInfo
+import com.example.movieboxexplorer.data.recommend
+import com.example.movieboxexplorer.data.rankingList
+import com.example.movieboxexplorer.data.rankingSubjects
+import com.example.movieboxexplorer.data.comments
+import com.example.movieboxexplorer.data.playInfo
+import com.example.movieboxexplorer.data.home
+import com.example.movieboxexplorer.data.tabOperating
+import com.example.movieboxexplorer.data.fetchPages
+import com.example.movieboxexplorer.data.parsePageGrid
+import com.example.movieboxexplorer.data.parsePagePager
+import com.example.movieboxexplorer.data.parsePageFilters
+import com.example.movieboxexplorer.data.pageOperating
+import com.example.movieboxexplorer.data.rankingPage
+import com.example.movieboxexplorer.data.filter
+import com.example.movieboxexplorer.data.trending
+import com.example.movieboxexplorer.data.everyoneSearch
+import com.example.movieboxexplorer.data.ranking
+import com.example.movieboxexplorer.data.detailRec
+import com.example.movieboxexplorer.data.play
+import com.example.movieboxexplorer.data.caption
+import com.example.movieboxexplorer.data.head
+import com.example.movieboxexplorer.data.close
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -9,13 +37,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 
 class MovieBoxRepository(
-    private val api: MovieBoxApi,
+    internal val api: MovieBoxApi,
     /**
      * The mobile BFF. It is the catalog fallback: the H5 API answers first, and the
      * mobile API is used when a search or a detail record comes back empty. Playback
      * always stays on H5, because mobile `play-info` only returns promo renditions.
      */
-    private val mobile: MobileApi = MobileApi(),
+    internal val mobile: MobileApi = MobileApi(),
 ) {
 
     suspend fun search(keyword: String, subjectType: Int): List<SubjectBrief> {
@@ -149,8 +177,8 @@ class MovieBoxRepository(
     private var homeCache: HomePage? = null
 
     /** Mobile `season-info` cache — one call per subject per repository. */
-    private val seasonCache = mutableMapOf<String, Resource?>()
-    private val seasonCacheMutex = Mutex()
+    internal val seasonCache = mutableMapOf<String, Resource?>()
+    internal val seasonCacheMutex = Mutex()
 
     /**
      * Home rows, copied from the website's `/`.
@@ -304,9 +332,9 @@ class MovieBoxRepository(
     }
     // ---------------------------------------------------------------- SSR cache
 
-    private val ssrCache = mutableListOf<SubjectBrief>()
+    internal val ssrCache = mutableListOf<SubjectBrief>()
 
-    private fun rememberSsr(subjects: List<SubjectBrief>) {
+    internal fun rememberSsr(subjects: List<SubjectBrief>) {
         synchronized(ssrCache) {
             ssrCache.addAll(subjects)
         }
@@ -340,7 +368,7 @@ class MovieBoxRepository(
 
 
     /** One mobile season-info call per subject, shared by the parent and every dub. */
-    private suspend fun cachedSeasonInfo(subjectId: String): Resource? {
+    internal suspend fun cachedSeasonInfo(subjectId: String): Resource? {
         seasonCacheMutex.withLock { seasonCache[subjectId]?.let { return it } }
         val value = mobile.seasonInfo(subjectId)
         seasonCacheMutex.withLock { seasonCache[subjectId] = value }
@@ -351,145 +379,6 @@ class MovieBoxRepository(
      * Loads a title and resolves every language variant against the catalogue so the
      * UI can show, per language, how many seasons and episodes are actually present.
      */
-    suspend fun loadTitle(detailPath: String, subjectId: String): TitleInfo? {
-        // H5 is the fast path. Only call the mobile API when H5 is missing an
-        // English/Hindi dub or has no season data — otherwise the mobile round-trip
-        // makes every detail page feel slow for no benefit.
-        val h5Main = api.detail(detailPath, subjectId)
-        var main = h5Main
-        if (main == null || main.subject?.webHighRisk == true) {
-            val mobileDetail = mobile.detail(subjectId)?.toTitleDetail()
-            if (mobileDetail?.subject != null) main = mobileDetail
-        }
-        val resolvedMain = main ?: return null
-        var subject = resolvedMain.subject ?: return null
-
-        val h5HasEnglish = subject.dubs.any { it.type == 0 && it.lanCode.equals("en", true) }
-        val h5HasHindi = subject.dubs.any { it.type == 0 && it.lanCode.equals("hi", true) }
-        val h5SeasonEpisodes = SeasonMath.seasonsOf(resolvedMain.resource).sumOf { it.episodes }
-
-        val needsMobileDubs = subject.dubs.isEmpty() || !h5HasEnglish || !h5HasHindi
-        val needsMobileSeasons = resolvedMain.resource == null || h5SeasonEpisodes == 0
-
-        val mobileDubs: List<MobileDub>
-        val mobileMainSeasons: Resource?
-        if (needsMobileDubs || needsMobileSeasons) {
-            val pair = coroutineScope {
-                val dubs = async { if (needsMobileDubs) mobile.dubInfo(subjectId) else emptyList() }
-                val seasons = async { if (needsMobileSeasons) cachedSeasonInfo(subjectId) else null }
-                dubs.await() to seasons.await()
-            }
-            mobileDubs = pair.first
-            mobileMainSeasons = pair.second
-        } else {
-            mobileDubs = emptyList()
-            mobileMainSeasons = null
-        }
-
-        // The H5 record's dub list can be partial (for example, a missing Hindi
-        // track). The mobile `dub-info` endpoint is the fuller index, so merge it
-        // in. A dub with a non-empty detailPath wins over one without.
-        val mergedDubs = (subject.dubs + mobileDubs.map { it.toDubVariant() })
-            .filter { it.subjectId.isNotBlank() || it.detailPath.isNotBlank() }
-            .groupBy { it.subjectId.ifBlank { it.detailPath } }
-            .map { (_, variants) -> variants.firstOrNull { it.detailPath.isNotBlank() } ?: variants.first() }
-        if (mergedDubs.isNotEmpty()) subject = subject.copy(dubs = mergedDubs)
-
-        // The parent record's mobile `season-info` is the reference for how many
-        // episodes a complete track has. If a dub's H5 resource is shorter than
-        // that, fetch the dub's own mobile `season-info` and merge it in.
-        val mainResource = SeasonMath.mergeResources(
-            resolvedMain.resource,
-            mobileMainSeasons,
-        )
-        val ownSeasons = SeasonMath.seasonsOf(mainResource)
-        val referenceEpisodeCount = ownSeasons.sumOf { it.episodes }
-
-        val gate = Semaphore(4)
-        val languages = coroutineScope {
-            subject.dubs.map { variant ->
-                async {
-                    val resolved = gate.withPermit {
-                        api.detail(variant.detailPath, variant.subjectId)
-                            ?: mobile.detail(variant.subjectId)?.toTitleDetail()
-                    }
-                    val h5Resource = resolved?.resource
-                    val h5EpisodeCount = SeasonMath.seasonsOf(h5Resource).sumOf { it.episodes }
-                    val mobileResource = if (
-                        h5Resource == null ||
-                        (referenceEpisodeCount > 0 && h5EpisodeCount < referenceEpisodeCount)
-                    ) {
-                        gate.withPermit { cachedSeasonInfo(variant.subjectId) }
-                    } else {
-                        null
-                    }
-                    val resource = SeasonMath.mergeResources(h5Resource, mobileResource)
-                    val seasons = SeasonMath.seasonsOf(resource)
-                    LanguageInfo(
-                        label = variant.lanName.ifBlank { variant.lanCode },
-                        code = variant.lanCode,
-                        kind = if (variant.type == 1) "Subtitle" else "Dub",
-                        isOriginal = variant.original,
-                        episodes = seasons.sumOf { it.episodes },
-                        seasons = seasons,
-                        resolutions = SeasonMath.mergeResolutions(seasons),
-                        uploader = resource?.uploadBy.orEmpty(),
-                        detailPath = variant.detailPath,
-                        subjectId = variant.subjectId,
-                        isPornographic = resolved?.subject?.isPornographic == true,
-                    )
-                }
-            }.awaitAll()
-        }
-
-        val normalizedLanguages = SeasonMath.normalizeLanguages(ownSeasons, languages)
-
-        val reference = maxOf(
-            referenceEpisodeCount,
-            normalizedLanguages.maxOfOrNull { it.episodes } ?: 0,
-        )
-        val referenceSeasons = maxOf(
-            ownSeasons.count { it.episodes > 0 },
-            normalizedLanguages.maxOfOrNull { it.seasonCount } ?: 0,
-        )
-
-        // A title without language variants — most movies — is its own track, so the
-        // picker still has something to play.
-        val tracks = normalizedLanguages.ifEmpty {
-            listOf(
-                LanguageInfo(
-                    label = "Original",
-                    code = "",
-                    kind = "Dub",
-                    isOriginal = true,
-                    episodes = ownSeasons.sumOf { it.episodes },
-                    seasons = ownSeasons,
-                    resolutions = SeasonMath.mergeResolutions(ownSeasons),
-                    uploader = mainResource?.uploadBy.orEmpty(),
-                    detailPath = detailPath,
-                    subjectId = subjectId,
-                    isPornographic = subject.isPornographic,
-                )
-            )
-        }
-
-        // The cast is optional. Fetching it from the mobile API adds a network call
-        // to every detail open, so only the H5 record's cast is used.
-        val stars = resolvedMain.stars
-
-        return TitleInfo(
-            subject = subject,
-            stars = stars.filter { it.name.isNotBlank() },
-            languages = tracks.sortedWith(
-                compareByDescending<LanguageInfo> { it.episodes }.thenByDescending { it.seasonCount }
-            ),
-            referenceEpisodes = reference,
-            referenceSeasons = referenceSeasons,
-            isForbidden = resolvedMain.isForbid,
-            resource = mainResource,
-        )
-    }
-
     // ---------------------------------------------------------------- playback
 
     /**
@@ -539,177 +428,13 @@ class MovieBoxRepository(
         lan: String = "en",
     ): List<Caption> = api.caption(detailPath, subjectId, season, episode, lan)
 
-    /**
-     * Runs a set of live checks against both APIs and the repository.
-     *
-     * The report is plain text and contains no tokens. It is used by the in-app
-     * Diagnostics screen so a device in any region can show exactly which layer is
-     * failing.
-     */
-    suspend fun diagnostics(
-        host: String,
-        appVersion: String,
-        apiBase: String,
-        siteHost: String,
-        cacheBytes: Long,
-    ): DiagnosticsReport {
-        val results = mutableListOf<CheckResult>()
-
-        suspend fun check(name: String, block: suspend () -> Pair<CheckStatus, String>) {
-            val start = System.currentTimeMillis()
-            val result = try {
-                val (status, detail) = block()
-                CheckResult(name, status, System.currentTimeMillis() - start, detail)
-            } catch (e: Exception) {
-                CheckResult(name, CheckStatus.FAIL, System.currentTimeMillis() - start, e.message ?: "error")
-            }
-            results += result
-        }
-
-        check("H5 session") {
-            val token = api.ensureSession()
-            (if (token.isNotBlank()) CheckStatus.PASS else CheckStatus.FAIL) to
-                "token ${token.length} chars"
-        }
-
-        val home = api.home(host)
-        check("H5 home") {
-            (if (home.operatingList.isNotEmpty()) CheckStatus.PASS else CheckStatus.FAIL) to
-                "${home.operatingList.size} sections, ${home.platformList.size} platforms"
-        }
-
-        check("H5 search") {
-            val search = api.search("Black Clover", page = 1, perPage = 3, subjectType = 2)
-            val ranked = SearchRank.rank(search.items, "Black Clover")
-            val first = ranked.firstOrNull()
-            (if (first != null && first.title.contains("Black Clover", true)) CheckStatus.PASS else CheckStatus.WARN) to
-                "${search.items.size} results, first=${first?.title.orEmpty()}"
-        }
-
-        check("Mobile session") {
-            val token = mobile.session()
-            (if (!token.isNullOrBlank()) CheckStatus.PASS else CheckStatus.FAIL) to
-                "token ${token?.length ?: 0} chars"
-        }
-
-        val mobileItems = SearchRank.rank(
-            mobile.searchSubjects("Black Clover", perPage = 5),
-            "Black Clover",
-        )
-        check("Mobile search") {
-            (if (mobileItems.isNotEmpty()) CheckStatus.PASS else CheckStatus.FAIL) to
-                "${mobileItems.size} results, first=${mobileItems.firstOrNull()?.title.orEmpty()}"
-        }
-
-        val mobileFirst = mobileItems.firstOrNull()
-        val mobileDetail = mobileFirst?.let { mobile.detail(it.subjectId) }
-        check("Mobile detail") {
-            val subject = mobileDetail?.subject
-            (if (subject != null) CheckStatus.PASS else CheckStatus.FAIL) to
-                "${subject?.title.orEmpty()}, dubs=${mobileDetail?.dubs?.size ?: 0}"
-        }
-
-        check("Mobile dubs") {
-            val dubs = mobileFirst?.let { mobile.dubInfo(it.subjectId) }.orEmpty()
-            (if (dubs.isNotEmpty()) CheckStatus.PASS else CheckStatus.WARN) to
-                dubs.joinToString(", ") { it.lanName }
-        }
-
-        check("Mobile seasons") {
-            val resource = mobileFirst?.let { mobile.seasonInfo(it.subjectId) }
-            (if (!resource?.seasons.isNullOrEmpty()) CheckStatus.PASS else CheckStatus.WARN) to
-                "${resource?.seasons?.size ?: 0} seasons"
-        }
-
-        val mobileSubject = mobileDetail?.subject
-        val detailPath = mobileSubject?.detailPath
-            ?.ifBlank { mobileSubject.detailUrl.trimEnd('/').substringAfterLast('/') }
-            .orEmpty()
-            .ifBlank { "black-torch-ezMof4UGRj8" }
-        val detailId = mobileSubject?.subjectId
-            ?.ifBlank { mobileFirst?.subjectId }
-            .orEmpty()
-            .ifBlank { "6983322689440465144" }
-
-        var detailInfo: TitleInfo? = null
-        check("Detail path") {
-            val info = loadTitle(detailPath, detailId)
-            detailInfo = info
-            (if (info != null && info.languages.isNotEmpty()) CheckStatus.PASS else CheckStatus.FAIL) to
-                "${info?.languages?.size ?: 0} languages, ${info?.referenceEpisodes ?: 0} episodes"
-        }
-
-        check("Language seasons") {
-            val info = detailInfo
-            if (info == null) {
-                CheckStatus.FAIL to "no detail"
-            } else {
-                val text = info.languages.take(8).joinToString(" | ") { language ->
-                    "${language.label}: " +
-                        language.seasons.joinToString(",") { "S${it.season}:${it.episodes}" }
-                }
-                CheckStatus.PASS to text
-            }
-        }
-
-        check("Related") {
-            val items = api.detailRec(detailId, perPage = 5)
-            (if (items.isNotEmpty()) CheckStatus.PASS else CheckStatus.WARN) to
-                "${items.size} related items"
-        }
-
-        check("Playback") {
-            val data = api.play(detailPath, detailId, 1, 1)
-            if (data == null) {
-                CheckStatus.FAIL to "no response"
-            } else {
-                val source = selectPlaybackSource(
-                    data,
-                    mapOf(
-                        "Referer" to api.cdnReferer(),
-                        "User-Agent" to PLAYBACK_USER_AGENT,
-                    ),
-                )
-                when {
-                    source == null -> CheckStatus.FAIL to "no playable source (hasResource=${data.hasResource})"
-                    source.url.contains("macdn.aoneroom.com/other", true) -> CheckStatus.FAIL to "promo stream"
-                    else -> CheckStatus.PASS to "${source.format} ${source.resolution}p"
-                }
-            }
-        }
-
-        check("Home cache") {
-            (if (cacheBytes > 0) CheckStatus.PASS else CheckStatus.WARN) to
-                "${cacheBytes / 1024} KB"
-        }
-
-        check("Image CDN") {
-            val image = home.operatingList
-                .firstOrNull { it.type == "BANNER" }
-                ?.banner?.items?.firstOrNull()?.image?.url
-            if (image.isNullOrBlank()) {
-                CheckStatus.SKIP to "no banner image"
-            } else {
-                (if (api.head(image)) CheckStatus.PASS else CheckStatus.WARN) to image.take(80)
-            }
-        }
-
-        return DiagnosticsReport(
-            appVersion = appVersion,
-            apiBase = apiBase,
-            siteHost = siteHost,
-            cacheBytes = cacheBytes,
-            results = results,
-        )
-    }
-
     /** Closes both HTTP clients. */
     fun close() {
         api.close()
         mobile.close()
     }
 
-    private companion object {
+    internal companion object {
         /** The website drops this row from the home payload client-side. */
         const val HIDDEN_HOME_ROW = "5675838686378840096"
 
