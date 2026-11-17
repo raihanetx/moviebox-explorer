@@ -3,6 +3,7 @@ package com.example.movieboxexplorer.ui
 import android.content.Intent
 import android.net.Uri
 import android.text.format.Formatter
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,29 +21,34 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.movieboxexplorer.data.DownloadItem
-import com.example.movieboxexplorer.data.Downloads
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +58,13 @@ fun DownloadsScreen(
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val active = items.count { it.isActive }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -70,11 +83,15 @@ fun DownloadsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                        )
                     }
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         if (items.isEmpty()) {
             Column(
@@ -91,7 +108,7 @@ fun DownloadsScreen(
                     text = "Tap the download icon on any poster — or the Download button on a title — to save an episode or movie.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
         } else {
@@ -102,26 +119,53 @@ fun DownloadsScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val downloads = items.filter { it.isActive }
+                val downloading = items.filter { it.isActive }
+                val paused = items.filter { it.isPausedUi }
                 val failed = items.filter { it.isFailed }
                 val done = items.filter { it.isComplete }
 
-                if (downloads.isNotEmpty()) {
+                if (downloading.isNotEmpty()) {
                     item(key = "active-title") { SectionLabel("Downloading") }
-                    items(downloads, key = { it.id }) { item ->
-                        DownloadRow(item = item, onDelete = { viewModel.delete(item.id) })
+                    items(downloading, key = { it.id }) { item ->
+                        DownloadRow(
+                            item = item,
+                            onPause = { viewModel.pause(item.id) },
+                            onResume = { viewModel.resume(item.id) },
+                            onDelete = { viewModel.delete(item.id) },
+                        )
+                    }
+                }
+                if (paused.isNotEmpty()) {
+                    item(key = "paused-title") { SectionLabel("Paused") }
+                    items(paused, key = { it.id }) { item ->
+                        DownloadRow(
+                            item = item,
+                            onPause = { viewModel.pause(item.id) },
+                            onResume = { viewModel.resume(item.id) },
+                            onDelete = { viewModel.delete(item.id) },
+                        )
                     }
                 }
                 if (failed.isNotEmpty()) {
                     item(key = "failed-title") { SectionLabel("Failed") }
                     items(failed, key = { it.id }) { item ->
-                        DownloadRow(item = item, onDelete = { viewModel.delete(item.id) })
+                        DownloadRow(
+                            item = item,
+                            onPause = { viewModel.pause(item.id) },
+                            onResume = { viewModel.resume(item.id) },
+                            onDelete = { viewModel.delete(item.id) },
+                        )
                     }
                 }
                 if (done.isNotEmpty()) {
                     item(key = "done-title") { SectionLabel("Downloaded") }
                     items(done, key = { it.id }) { item ->
-                        DownloadRow(item = item, onDelete = { viewModel.delete(item.id) })
+                        DownloadRow(
+                            item = item,
+                            onPause = { viewModel.pause(item.id) },
+                            onResume = { viewModel.resume(item.id) },
+                            onDelete = { viewModel.delete(item.id) },
+                        )
                     }
                 }
             }
@@ -140,89 +184,191 @@ private fun SectionLabel(text: String) {
     )
 }
 
+/** The three-dot affordance — drawn, so it works on every icon pack. */
 @Composable
-private fun DownloadRow(item: DownloadItem, onDelete: () -> Unit) {
+private fun MoreVertIcon() {
+    Column(
+        modifier = Modifier.padding(2.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        repeat(3) {
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurface),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadRow(
+    item: DownloadItem,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val context = LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = statusLine(context, item),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (item.isFailed) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                    if (item.isActive && item.hasSizes) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = "${Formatter.formatShortFileSize(context, item.downloadedBytes)} of ${Formatter.formatShortFileSize(context, item.totalBytes)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                if (item.isComplete && item.localUri != null) {
-                    IconButton(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(Uri.parse(item.localUri), "video/*")
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        context.startActivity(intent)
-                    }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Play")
-                    }
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete")
-                }
+            // Title + quality above the bar.
+            Text(
+                text = item.displayTitle,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (item.displaySubtitle.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = item.displaySubtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            if (item.isActive) {
-                Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(10.dp))
+
+            // Progress bar with the three-dot menu on its right edge.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 if (item.hasSizes) {
                     LinearProgressIndicator(
                         progress = { item.progress },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
                     )
                 } else {
                     LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
                     )
                 }
+                Spacer(Modifier.width(6.dp))
+                Box {
+                    IconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        MoreVertIcon()
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        when {
+                            item.isComplete -> DropdownMenuItem(
+                                text = { Text("Play") },
+                                onClick = {
+                                    menuOpen = false
+                                    item.localUri?.let { uri ->
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(Uri.parse(uri), "video/*")
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                },
+                            )
+
+                            item.isPausedUi -> DropdownMenuItem(
+                                text = { Text("Resume") },
+                                onClick = {
+                                    menuOpen = false
+                                    onResume()
+                                },
+                            )
+
+                            item.isFailed -> DropdownMenuItem(
+                                text = { Text("Retry") },
+                                onClick = {
+                                    menuOpen = false
+                                    onResume()
+                                },
+                            )
+
+                            else -> DropdownMenuItem(
+                                text = { Text("Pause") },
+                                onClick = {
+                                    menuOpen = false
+                                    onPause()
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            onClick = {
+                                menuOpen = false
+                                onDelete()
+                            },
+                        )
+                    }
+                }
             }
+            Spacer(Modifier.height(6.dp))
+
+            // Bottom line: how much is done and how long it could take.
+            Text(
+                text = bottomLine(context, item),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (item.isFailed) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
         }
     }
 }
 
-private fun statusLine(
+private fun bottomLine(
     context: android.content.Context,
     item: DownloadItem,
-): String = when (item.status) {
-    android.app.DownloadManager.STATUS_PENDING -> "Pending — waiting to start"
-    android.app.DownloadManager.STATUS_RUNNING ->
-        if (item.hasSizes) "Downloading · ${item.percent}%" else "Downloading…"
-    android.app.DownloadManager.STATUS_PAUSED -> "Paused (no connection)"
-    android.app.DownloadManager.STATUS_SUCCESSFUL ->
-        "Downloaded · " + Formatter.formatShortFileSize(context, item.downloadedBytes)
-    android.app.DownloadManager.STATUS_FAILED -> "Failed (${reasonLabel(item.reason)})"
-    else -> "Unknown"
+): String {
+    val size = item.totalBytes.takeIf { it > 0 }
+    val done = item.downloadedBytes.takeIf { it > 0 }
+    return when {
+        item.isFailed -> "Failed · ${reasonLabel(item.reason)}"
+        item.isComplete -> "Downloaded · " +
+            Formatter.formatShortFileSize(context, item.totalBytes)
+        item.isPausedUi -> {
+            val kept = done?.let { Formatter.formatShortFileSize(context, it) }
+            if (kept != null && size != null) {
+                "Paused · $kept of ${Formatter.formatShortFileSize(context, size)} kept — resume starts over"
+            } else {
+                "Paused — resume starts over"
+            }
+        }
+        item.isActive && size != null && done != null -> {
+            val progress = "${Formatter.formatShortFileSize(context, done)} of " +
+                Formatter.formatShortFileSize(context, size)
+            val eta = item.etaSeconds?.let { " · ${etaLabel(it)}" } ?: ""
+            "$progress · ${item.percent}%$eta"
+        }
+        item.isActive -> "Downloading…"
+        else -> "Unknown"
+    }
+}
+
+private fun etaLabel(seconds: Int): String = when {
+    seconds < 60 -> "≈ $seconds s left"
+    seconds < 3600 -> "≈ ${seconds / 60} min left"
+    else -> "≈ ${seconds / 3600} h ${(seconds % 3600) / 60} min left"
 }
 
 private fun reasonLabel(reason: Int): String = when (reason) {

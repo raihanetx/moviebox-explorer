@@ -264,7 +264,7 @@ private fun MovieBoxApp() {
 
                 composable("downloads") {
                     val viewModel: DownloadsViewModel = viewModel(
-                        factory = DownloadsViewModel.factory(downloads),
+                        factory = DownloadsViewModel.factory(downloads, repository),
                     )
                     DownloadsScreen(
                         viewModel = viewModel,

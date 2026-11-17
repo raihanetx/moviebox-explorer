@@ -1317,11 +1317,20 @@ signed MP4 URL and headers to Android's system `DownloadManager`. The file name 
 `moviebox_<id>_s<se>e<ep>_<res>p.mp4`.
 
 - **Downloads** is a dedicated tab in the bottom navigation (between TV and Search).
-  Every row groups under *Downloading* / *Failed* / *Downloaded*: title, status
-  (`Downloading · 45%`), bytes done vs total, and a determinate progress bar; a
-  completed row shows the final size and a **Play** button; a failed row shows the
-  reason (`not enough space`, …). The tab only shows downloads started by this app
-  (ids tracked in `SharedPreferences`) — it does not list the system queue.
+  Every row groups under *Downloading* / *Paused* / *Failed* / *Downloaded*:
+  - the title and the quality sit above the bar (`Baki Hanma — Hindi dub`, with
+    `S1 E5 · 1080p` for series or just `1080p` for films);
+  - a determinate progress bar; on its right edge a **three-dot** button opens a menu
+    (**Pause**, or **Resume** / **Retry**, or **Play**, plus **Delete**);
+  - the bottom line shows bytes done vs total and roughly how long it will take
+    (`231 MB of 512 MB · 45% · ≈ 3 min left`); a completed row shows the final size;
+    a failed row shows the reason (`not enough space`, …).
+- Rows are tracked per download id in `SharedPreferences` together with the request
+  metadata (title, language, season, episode, quality, file, playback request) — the
+  tab never lists the system queue.
+- Pause/Resume: the system `DownloadManager` has no pause API, so **Pause** cancels
+  the transfer and keeps the row; **Resume** re-resolves a fresh signed URL for the
+  same episode and starts over from 0. Retry re-issues a failed download the same way.
 - After starting a download the app shows “Download started — see Downloads” with a
   **View** action that jumps straight to the tab.
 - Delete removes the download (file and queue entry).

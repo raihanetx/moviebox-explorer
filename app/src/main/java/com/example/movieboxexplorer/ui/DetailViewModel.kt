@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.movieboxexplorer.data.LanguageFilter
 import com.example.movieboxexplorer.data.LanguageInfo
+import com.example.movieboxexplorer.data.DownloadMeta
 import com.example.movieboxexplorer.data.MovieBoxRepository
 import com.example.movieboxexplorer.data.PlaybackResult
 import com.example.movieboxexplorer.data.PlaybackSource
@@ -36,6 +37,7 @@ data class DownloadRequest(
     val url: String,
     val headers: Map<String, String>,
     val fileName: String,
+    val meta: DownloadMeta,
 )
 
 sealed interface PlaybackUiState {
@@ -202,16 +204,42 @@ class DetailViewModel(
             )
             when (result) {
                 is PlaybackResult.Ready -> {
+                    val ready = _state.value as? DetailUiState.Ready
+                    val mediaTitle = ready?.info?.subject?.title?.takeIf { it.isNotBlank() }
+                        ?: detailPath
                     val safeName = selection.language.subjectId
                         .ifBlank { subjectId }
                         .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                    val resolution = result.source.resolution
+                    val qualityLabel = if (resolution > 0) "${resolution}p" else result.source.format
+                    val fileName = "moviebox_${safeName}_s${selection.season}e${selection.episode}" +
+                        (resolution.takeIf { it > 0 }?.let { "_${it}p" }.orEmpty()) +
+                        ".mp4"
                     _download.value = DownloadRequest(
-                        title = labelFor(selection, result.source),
+                        title = buildString {
+                            append(mediaTitle)
+                            append(" — ").append(selection.language.label)
+                            if (ready?.info?.isMovie != true) {
+                                append(" · S${selection.season} E${selection.episode}")
+                            }
+                            append(" · ").append(qualityLabel)
+                        },
                         url = result.source.url,
                         headers = result.source.headers,
-                        fileName = "moviebox_${safeName}_s${selection.season}e${selection.episode}" +
-                            (result.source.resolution.takeIf { it > 0 }?.let { "_${it}p" }.orEmpty()) +
-                            ".mp4",
+                        fileName = fileName,
+                        meta = DownloadMeta(
+                            mediaTitle = mediaTitle,
+                            languageLabel = selection.language.label,
+                            season = selection.season,
+                            episode = selection.episode,
+                            qualityLabel = qualityLabel,
+                            resolution = resolution,
+                            fileName = fileName,
+                            detailPath = selection.language.detailPath.ifBlank { detailPath },
+                            subjectId = selection.language.subjectId.ifBlank { subjectId },
+                            preferredResolution = quality,
+                            isMovie = ready?.info?.isMovie ?: false,
+                        ),
                     )
                     _playback.value = PlaybackUiState.Idle
                 }

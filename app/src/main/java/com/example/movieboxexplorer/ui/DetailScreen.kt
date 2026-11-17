@@ -168,6 +168,7 @@ fun DetailScreen(
             url = request.url,
             headers = request.headers,
             fileName = request.fileName,
+            meta = request.meta,
         )
         viewModel.clearDownload()
         val result = snackbarHostState.showSnackbar(
