@@ -10,6 +10,7 @@ import com.example.movieboxexplorer.data.CatalogContent
 import com.example.movieboxexplorer.data.CatalogFilter
 import com.example.movieboxexplorer.data.CatalogGrid
 import com.example.movieboxexplorer.data.FilterGroup
+import com.example.movieboxexplorer.data.GridCache
 import com.example.movieboxexplorer.data.MovieBoxRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +36,7 @@ class CatalogViewModel(
     private val repository: MovieBoxRepository,
     private val host: String,
     private val kind: CatalogKind,
+    private val cache: GridCache? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<CatalogUiState>(CatalogUiState.Loading)
@@ -43,20 +45,49 @@ class CatalogViewModel(
     private val _filter = MutableStateFlow(CatalogFilter())
 
     init {
+        // Stale-while-revalidate: show the cached grid instantly, refresh behind it.
+        cache?.load(gridCacheKey(), CACHE_TTL_MILLIS)?.let { cached ->
+            _state.value = CatalogUiState.Ready(
+                content = CatalogContent.Grid(cached),
+                filters = emptyList(),
+                filter = _filter.value,
+            )
+        }
         load()
     }
 
     fun load() {
         viewModelScope.launch {
-            _state.value = CatalogUiState.Loading
+            val hadContent = _state.value is CatalogUiState.Ready
+            if (!hadContent) {
+                _state.value = CatalogUiState.Loading
+            }
             _state.value = try {
                 val content = buildContent(1, _filter.value)
                 val filters = gridFilterConfig()
+                (content.gridOrNull())?.let { grid ->
+                    cache?.save(gridCacheKey(), grid)
+                }
                 CatalogUiState.Ready(content = content, filters = filters, filter = _filter.value)
             } catch (e: Exception) {
+                if (hadContent) {
+                    // Keep showing the stale page; refresh failed quietly.
+                    return@launch
+                }
                 CatalogUiState.Error(e.message ?: "Failed to load catalogue")
             }
         }
+    }
+
+    private fun CatalogContent.gridOrNull(): CatalogGrid? = (this as? CatalogContent.Grid)?.grid
+
+    private fun gridCacheKey(): String {
+        val f = _filter.value
+        return listOf(
+            "grid", host, kind.name,
+            f.genre ?: "", f.country ?: "", f.year ?: "",
+            f.sort ?: "", f.rate ?: "", f.classify ?: "",
+        ).joinToString("|")
     }
 
     /** Loads the next page of a grid catalog, the way the website's "load more" does. */
@@ -130,12 +161,15 @@ class CatalogViewModel(
     }
 
     companion object {
+        private const val CACHE_TTL_MILLIS = 10 * 60 * 1000L
+
         fun factory(
             repository: MovieBoxRepository,
             host: String,
             kind: CatalogKind,
+            cache: GridCache? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { CatalogViewModel(repository, host, kind) }
+            initializer { CatalogViewModel(repository, host, kind, cache) }
         }
     }
 }

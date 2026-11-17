@@ -1,5 +1,7 @@
 package com.example.movieboxexplorer.data
 
+import kotlinx.serialization.Serializable
+
 /**
  * One season of a language track.
  *
@@ -77,6 +79,7 @@ data class CatalogRow(
  * The website's TV and animation pages are grids rather than rows of carousels, and
  * they are paginated — the payload carries the same pager shape the API uses.
  */
+@Serializable
 data class CatalogGrid(
     val items: List<SubjectBrief>,
     val hasMore: Boolean = false,

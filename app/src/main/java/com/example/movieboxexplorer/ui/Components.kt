@@ -42,11 +42,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.movieboxexplorer.data.CatalogRow
 import com.example.movieboxexplorer.data.SubjectBrief
 
@@ -302,11 +305,27 @@ fun PosterGrid(
     onDownload: ((SubjectBrief) -> Unit)? = null,
 ) {
     val listState = rememberLazyGridState()
+    val context = LocalContext.current
+    val prefetcher = remember { ImageLoader(context) }
     val shouldLoadMore by remember {
         derivedStateOf {
             val layout = listState.layoutInfo
             val last = layout.visibleItemsInfo.lastOrNull()?.index ?: 0
             last >= layout.totalItemsCount - 4
+        }
+    }
+
+    // Warm the image cache for every poster the grid is about to show — the
+    // network fetch of covers is the dominant cost after the JSON payload.
+    LaunchedEffect(items) {
+        items.forEach { item ->
+            item.cover?.url?.let { url ->
+                prefetcher.enqueue(
+                    ImageRequest.Builder(context)
+                        .data(url)
+                        .build(),
+                )
+            }
         }
     }
 

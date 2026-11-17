@@ -52,6 +52,7 @@ import coil.Coil
 import coil.ImageLoader
 import com.example.movieboxexplorer.data.AppSettings
 import com.example.movieboxexplorer.data.Downloads
+import com.example.movieboxexplorer.data.GridCache
 import com.example.movieboxexplorer.data.HomeCache
 import com.example.movieboxexplorer.data.MovieBoxApi
 import com.example.movieboxexplorer.data.MovieBoxRepository
@@ -138,6 +139,7 @@ private fun MovieBoxApp() {
     val context = LocalContext.current
     val settings = remember { AppSettings(context) }
     val homeCache = remember { HomeCache(context) }
+    val gridCache = remember { GridCache(context) }
     val downloads = remember { Downloads(context) }
     val revision by settings.revision.collectAsStateWithLifecycle()
     val ageGateAccepted by settings.ageGateAcceptedFlow.collectAsStateWithLifecycle()
@@ -228,7 +230,7 @@ private fun MovieBoxApp() {
 
                 composable("movies") {
                     val viewModel: CatalogViewModel = viewModel(
-                        factory = CatalogViewModel.factory(repository, host, CatalogKind.MOVIES),
+                        factory = CatalogViewModel.factory(repository, host, CatalogKind.MOVIES, gridCache),
                     )
                     CatalogScreen(
                         viewModel = viewModel,
@@ -240,7 +242,7 @@ private fun MovieBoxApp() {
 
                 composable("animation") {
                     val viewModel: CatalogViewModel = viewModel(
-                        factory = CatalogViewModel.factory(repository, host, CatalogKind.ANIMATED),
+                        factory = CatalogViewModel.factory(repository, host, CatalogKind.ANIMATED, gridCache),
                     )
                     CatalogScreen(
                         viewModel = viewModel,
@@ -252,7 +254,7 @@ private fun MovieBoxApp() {
 
                 composable("tv") {
                     val viewModel: CatalogViewModel = viewModel(
-                        factory = CatalogViewModel.factory(repository, host, CatalogKind.TV),
+                        factory = CatalogViewModel.factory(repository, host, CatalogKind.TV, gridCache),
                     )
                     CatalogScreen(
                         viewModel = viewModel,

@@ -141,7 +141,7 @@ fun main(args: Array<String>) = runBlocking {
             println("detail: ${detail?.subject?.title} dubs=${detail?.dubs?.size ?: 0} subjectDubs=${detail?.subject?.dubs?.size ?: 0} (HTTP ${mobile.lastStatus})")
             mobile.lastBody?.let { println("detail body: ${it.take(500)}") }
             detail?.subject?.dubs?.take(8)?.forEach {
-                println("  dub ${it.lanName} (${it.lanCode}) = ${it.subjectId}")
+                println("  dub ${it.lanName} (${it.lanCode}) original=${it.original} type=${it.type} = ${it.subjectId}")
             }
             detail?.dubs?.take(8)?.forEach {
                 println("  top dub ${it.lanName} (${it.language.ifBlank { it.lanCode }}) = ${it.subjectId}")
@@ -340,8 +340,13 @@ fun main(args: Array<String>) = runBlocking {
     if (keyword == "page-op") {
         val path = args.getOrNull(1) ?: "/web/film"
         val api = MovieBoxApi()
+        val start = System.currentTimeMillis()
         val rows = api.pageOperating(path)
-        println("path=$path rows=${rows.size}")
+        val first = System.currentTimeMillis() - start
+        val start2 = System.currentTimeMillis()
+        api.pageOperating(path)
+        val second = System.currentTimeMillis() - start2
+        println("path=$path rows=${rows.size} first=${first}ms second=${second}ms")
         rows.take(8).forEach {
             println("  ${it.title ?: it.type}: ${it.subjects.size} items")
         }

@@ -17,6 +17,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -371,26 +374,29 @@ class MovieBoxApi(
      * answer with a 4 KB shell that has no catalog in it — so the caller has to be
      * able to skip a page that turned out to be empty.
      */
-    suspend fun fetchPages(path: String): List<String> {
-        val bases = (
-            listOf("https://$CANONICAL_HOST") +
-                listOf(siteBase) +
-                siteHosts.map { "https://$it" }
+    suspend fun fetchPages(path: String): List<String> =
+        coroutineScope {
+            val bases = (
+                listOf("https://$CANONICAL_HOST") +
+                    listOf(siteBase) +
+                    siteHosts.map { "https://$it" }
             ).distinct()
-        val pages = mutableListOf<String>()
-        for (base in bases) {
-            val html = runCatching {
-                http.get("$base$path") {
-                    headers {
-                        set(HttpHeaders.Accept, "text/html,application/xhtml+xml")
-                        set(HttpHeaders.UserAgent, "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
-                    }
-                }.bodyAsText()
-            }.getOrNull() ?: continue
-            if (html.isNotBlank()) pages.add(html)
+            val pages = java.util.concurrent.ConcurrentHashMap<String, String>()
+            val jobs = bases.map { base ->
+                async {
+                    runCatching {
+                        http.get("$base$path") {
+                            headers {
+                                set(HttpHeaders.Accept, "text/html,application/xhtml+xml")
+                                set(HttpHeaders.UserAgent, "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36")
+                            }
+                        }.bodyAsText()
+                    }.getOrNull()?.takeIf { it.isNotBlank() }?.let { pages[base] = it }
+                }
+            }
+            jobs.forEach { it.await() }
+            bases.mapNotNull { pages[it] }
         }
-        return pages
-    }
 
     /**
      * The curated rows a server-rendered page carries.
