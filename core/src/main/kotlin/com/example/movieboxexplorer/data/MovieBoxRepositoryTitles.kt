@@ -61,15 +61,21 @@ suspend fun MovieBoxRepository.loadTitle(detailPath: String, subjectId: String):
     val ownSeasons = SeasonMath.seasonsOf(mainResource)
     val referenceEpisodeCount = ownSeasons.sumOf { it.episodes }
 
-    val gate = Semaphore(4)
+    val gate = Semaphore(20)
     val languages = coroutineScope {
         subject.dubs.map { variant ->
             async {
-                val resolved = gate.withPermit {
-                    api.detail(variant.detailPath, variant.subjectId)
-                        ?: mobile.detail(variant.subjectId)?.toTitleDetail()
+                // H5 detail is the primary source; mobile season-info is only fired
+                // when H5 returns nothing usable. Both run in the same round so
+                // there is no second wave even if the mobile endpoint is slow.
+                val h5Deferred = async {
+                    gate.withPermit {
+                        api.detail(variant.detailPath, variant.subjectId)
+                            ?: mobile.detail(variant.subjectId)?.toTitleDetail()
+                    }
                 }
-                val h5Resource = resolved?.resource
+                val h5 = h5Deferred.await()
+                val h5Resource = h5?.resource
                 val h5EpisodeCount = SeasonMath.seasonsOf(h5Resource).sumOf { it.episodes }
                 val mobileResource = if (
                     h5Resource == null ||
