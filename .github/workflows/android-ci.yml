@@ -17,8 +17,6 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - uses: android-actions/setup-android@v3
-
       - name: Kotlin file-size policy
         run: scripts/check-file-size.sh
 
