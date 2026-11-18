@@ -98,7 +98,7 @@ suspend fun MovieBoxRepository.loadTitle(detailPath: String, subjectId: String):
                     uploader = resource?.uploadBy.orEmpty(),
                     detailPath = variant.detailPath,
                     subjectId = variant.subjectId,
-                    isPornographic = resolved?.subject?.isPornographic == true,
+                    isPornographic = h5?.subject?.isPornographic == true,
                 )
             }
         }.awaitAll()
