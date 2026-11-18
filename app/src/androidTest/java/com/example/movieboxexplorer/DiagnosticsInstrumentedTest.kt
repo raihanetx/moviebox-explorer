@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.movieboxexplorer.data.MovieBoxApi
 import com.example.movieboxexplorer.data.MovieBoxRepository
+import com.example.movieboxexplorer.data.diagnostics
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Test

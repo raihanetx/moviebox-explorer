@@ -1,5 +1,8 @@
 package com.example.movieboxexplorer.smoke
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import com.example.movieboxexplorer.data.CatalogFilter
 import com.example.movieboxexplorer.data.CatalogGrouper
 import com.example.movieboxexplorer.data.CatalogRow
@@ -238,6 +241,42 @@ suspend fun cmd_titles(
 
     return
 
+}
+
+
+suspend fun cmd_timing(
+    keyword: String,
+    explicitPath: String?,
+    args: Array<String>,
+    api: MovieBoxApi,
+    repository: MovieBoxRepository,
+) {
+    // Measure parent detail, dub fan-out, and related in sequence.
+    val t0 = System.currentTimeMillis()
+    val h5 = api.detail("black-torch-ezMof4UGRj8", "6983322689440465144")
+    val t1 = System.currentTimeMillis()
+    println("H5 parent detail : ${t1 - t0}ms (title=${h5?.subject?.title})")
+
+    val t2 = System.currentTimeMillis()
+    val dubs = h5?.subject?.dubs.orEmpty()
+    coroutineScope {
+        dubs.map { variant ->
+            async {
+                val s = System.currentTimeMillis()
+                val d = api.detail(variant.detailPath, variant.subjectId)
+                println("  dub ${variant.lanCode.padEnd(4)} detail=${System.currentTimeMillis() - s}ms")
+            }
+        }.awaitAll()
+    }
+    println("dub fan-out     : ${System.currentTimeMillis() - t2}ms (${dubs.size} dubs)")
+
+    val t3 = System.currentTimeMillis()
+    val info = repository.loadTitle("black-torch-ezMof4UGRj8", "6983322689440465144")
+    val t4 = System.currentTimeMillis()
+    println("loadTitle total : ${t4 - t3}ms (${info?.languages?.size} languages)")
+
+    api.close()
+    return
 }
 
 suspend fun cmd_ssr(
