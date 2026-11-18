@@ -21,7 +21,7 @@ jobs:
         run: scripts/check-file-size.sh
 
       - name: Unit tests and debug APK
-        run: gradle :core:test :app:assembleDebug
+        run: ./gradlew :core:test :app:assembleDebug
 
       - name: Emulator diagnostics
         uses: reactivecircus/android-emulator-runner@v2
@@ -32,7 +32,7 @@ jobs:
           profile: pixel_7
           disable-animations: true
           script: |
-            gradle :app:connectedDebugAndroidTest
+            ./gradlew :app:connectedDebugAndroidTest
             adb shell run-as com.example.movieboxexplorer cat files/diagnostics_report.txt > diagnostics_report.txt || true
             adb logcat -d -s DiagnosticsTest:I > logcat.txt || true
 
