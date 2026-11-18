@@ -220,24 +220,23 @@ private fun DownloadRow(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Poster — so the row is identifiable at a glance.
-                AsyncImage(
-                    model = item.meta.coverUrl.takeIf { it.isNotBlank() },
-                    contentDescription = item.displayTitle,
-                    modifier = Modifier
-                        .size(width = 54.dp, height = 76.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop,
-                )
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
+            // Poster — so the row is identifiable at a glance; vertically centered
+            // against the whole row (title, quality, progress bar and size/ETA).
+            AsyncImage(
+                model = item.meta.coverUrl.takeIf { it.isNotBlank() },
+                contentDescription = item.displayTitle,
+                modifier = Modifier
+                    .size(width = 62.dp, height = 88.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentScale = ContentScale.Crop,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = item.displayTitle,
                         style = MaterialTheme.typography.bodyLarge,
@@ -253,8 +252,6 @@ private fun DownloadRow(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                }
-            }
             Spacer(Modifier.height(10.dp))
 
             // Progress bar with the three-dot menu on its right edge.
@@ -350,6 +347,7 @@ private fun DownloadRow(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
+            }
         }
     }
 }
