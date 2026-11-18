@@ -186,7 +186,7 @@ class CatalogViewModel(
             host: String,
             filter: CatalogFilter = CatalogFilter(),
         ): String = listOf(
-            "grid", host, kind.name,
+            "v2", "grid", host, kind.name,
             filter.genre.orEmpty(), filter.country.orEmpty(), filter.year.orEmpty(),
             filter.sort.orEmpty(), filter.rate.orEmpty(), filter.classify.orEmpty(),
         ).joinToString("|")

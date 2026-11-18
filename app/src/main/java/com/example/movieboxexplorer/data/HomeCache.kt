@@ -24,12 +24,12 @@ class HomeCache(context: Context) {
     fun load(host: String): HomePage? = runCatching {
         if (!file.exists()) return null
         val payload = json.decodeFromString<HomeCachePayload>(file.readText())
-        payload.page.takeIf { payload.host == host }
+        payload.page.takeIf { payload.host == host && payload.policy == POLICY_VERSION }
     }.getOrNull()
 
     fun save(host: String, page: HomePage) {
         runCatching {
-            val payload = HomeCachePayload(host = host, page = page)
+            val payload = HomeCachePayload(host = host, page = page, policy = POLICY_VERSION)
             file.writeText(json.encodeToString(HomeCachePayload.serializer(), payload))
         }
     }
@@ -44,5 +44,11 @@ class HomeCache(context: Context) {
     private data class HomeCachePayload(
         val host: String,
         val page: HomePage,
+        /** Bumped when the exclusion policy changes — old payloads are dropped. */
+        val policy: Int = 1,
     )
+
+    private companion object {
+        const val POLICY_VERSION = 2
+    }
 }

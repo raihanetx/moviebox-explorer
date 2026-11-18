@@ -47,9 +47,9 @@ class MovieBoxRepository(
 ) {
 
     suspend fun search(keyword: String, subjectType: Int): List<SubjectBrief> {
-        val items = api.search(keyword = keyword, subjectType = subjectType).items
+        val items = ContentPolicy.keep(api.search(keyword = keyword, subjectType = subjectType).items)
         if (items.isNotEmpty()) return SearchRank.rank(items, keyword)
-        return SearchRank.rank(mobile.searchSubjects(keyword, perPage = 20), keyword)
+        return SearchRank.rank(ContentPolicy.keep(mobile.searchSubjects(keyword, perPage = 20)), keyword)
     }
 
     suspend fun searchPage(
@@ -60,10 +60,11 @@ class MovieBoxRepository(
     ): SearchPage {
         val result = api.search(keyword, page, perPage, subjectType)
         if (result.items.isNotEmpty()) {
-            return result.copy(items = SearchRank.rank(result.items, keyword))
+            val kept = ContentPolicy.keep(result.items)
+            if (kept.isNotEmpty()) return result.copy(items = SearchRank.rank(kept, keyword))
         }
-        val mobile = mobile.searchPage(keyword, page = page, perPage = perPage)
-        return mobile.copy(items = SearchRank.rank(mobile.items, keyword))
+        val mobilePage = mobile.searchPage(keyword, page = page, perPage = perPage)
+        return mobilePage.copy(items = SearchRank.rank(ContentPolicy.keep(mobilePage.items), keyword))
     }
 
     /**
@@ -135,20 +136,28 @@ class MovieBoxRepository(
 
     suspend fun suggest(keyword: String): List<String> = api.suggest(keyword)
 
-    suspend fun everyoneSearch(): EveryoneSearchPage = api.everyoneSearch()
+    suspend fun everyoneSearch(): EveryoneSearchPage =
+        api.everyoneSearch().let { page ->
+            page.copy(
+                hot = page.hot
+                    .map { it.copy(items = ContentPolicy.keep(it.items)) }
+                    .filter { it.items.isNotEmpty() },
+            )
+        }
 
     suspend fun related(subjectId: String): List<SubjectBrief> {
-        val items = api.detailRec(subjectId = subjectId, perPage = 12)
+        val items = ContentPolicy.keep(api.detailRec(subjectId = subjectId, perPage = 12))
         if (items.isNotEmpty()) return items
-        return mobile.recommend(subjectId)
+        return ContentPolicy.keep(mobile.recommend(subjectId))
     }
 
     suspend fun homePage(host: String): HomePage = api.home(host)
 
-    suspend fun rankingPage(): MostWatchedPage = api.rankingPage()
+    suspend fun rankingPage(): MostWatchedPage =
+        api.rankingPage().let { it.copy(subjectList = ContentPolicy.keep(it.subjectList)) }
 
     suspend fun rankingContent(id: String, page: Int = 1): List<SubjectBrief> =
-        api.ranking(id = id, page = page, perPage = 20).subjectList
+        ContentPolicy.keep(api.ranking(id = id, page = page, perPage = 20).subjectList)
 
     /**
      * The trailing "Suggestions" row the website appends to its pages.
@@ -201,7 +210,8 @@ class MovieBoxRepository(
         val sections = fromApi.operatingList.filter { it.opId != HIDDEN_HOME_ROW }
         val result = HomePage(
             platformList = fromApi.platformList,
-            operatingList = if (suggestions != null) sections + suggestions else sections,
+            operatingList = (if (suggestions != null) sections + suggestions else sections)
+                .mapNotNull { ContentPolicy.filterSection(it) },
         )
         homeCache = result
         return result
@@ -223,16 +233,20 @@ class MovieBoxRepository(
                 ?.forEach { add(CatalogRow(it.title, it.subjects)) }
             suggestionsRow(tabId = "ONEROOM_MOVIE", page = 1)?.let { add(CatalogRow(it.title, it.subjects)) }
         }
-        if (rows.isNotEmpty()) {
-            rememberSsr(rows.flatMap { it.items })
-            return rows
+        val keptRows = rows
+            .map { CatalogRow(it.title, ContentPolicy.keep(it.items)) }
+            .filter { it.items.isNotEmpty() }
+        if (keptRows.isNotEmpty()) {
+            rememberSsr(keptRows.flatMap { it.items })
+            return keptRows
         }
 
         val page = runCatching { api.pageOperating("/web/movie") }.getOrNull().orEmpty()
         val pageRows = page
+            .mapNotNull { ContentPolicy.filterSection(it) }
             .filter { it.subjects.isNotEmpty() && it.type != "BANNER" && it.type != "FILTER" }
             .map { CatalogRow(it.title, it.subjects) }
-        rememberSsr(page.flatMap { it.subjects })
+        rememberSsr(pageRows.flatMap { it.items })
         return pageRows
     }
 
@@ -272,7 +286,9 @@ class MovieBoxRepository(
     suspend fun filterConfig(path: String): List<FilterConfig> {
         for (html in api.fetchPages(path)) {
             val configs = api.parsePageFilters(html)
-            if (configs.isNotEmpty()) return configs
+            if (configs.isNotEmpty()) {
+                return ContentPolicy.hideFilterValues(configs, path.contains("animated-series"))
+            }
         }
         return emptyList()
     }
@@ -295,9 +311,10 @@ class MovieBoxRepository(
         filter: CatalogFilter,
         perPage: Int = FILTER_PAGE_SIZE,
     ): CatalogGrid {
+        val animation = channelId == ANIME_CHANNEL_ID
         if (page <= 1 && filter.isEmpty) {
             for (html in api.fetchPages(path)) {
-                val items = api.parsePageGrid(html)
+                val items = ContentPolicy.keep(api.parsePageGrid(html), animation)
                 if (items.isEmpty()) continue
                 val pager = api.parsePagePager(html)
                 rememberSsr(items)
@@ -323,9 +340,10 @@ class MovieBoxRepository(
             )
         )
         val pager = data.pager
-        rememberSsr(data.items)
+        val kept = ContentPolicy.keep(data.items, animation)
+        rememberSsr(kept)
         return CatalogGrid(
-            items = data.items,
+            items = kept,
             hasMore = pager?.hasMore ?: false,
             nextPage = pager?.nextPage?.toIntOrNull()?.takeIf { it > page } ?: (page + 1),
         )
@@ -357,13 +375,13 @@ class MovieBoxRepository(
                 .flatMap { api.pageOperating(it) }
                 .forEach { section -> synchronized(ssrCache) { ssrCache.addAll(section.subjects) } }
         }
-        return synchronized(ssrCache) {
+        return ContentPolicy.keep(synchronized(ssrCache) {
             ssrCache.filter {
                 it.title.lowercase().contains(query) ||
                     it.genre.lowercase().contains(query) ||
                     it.countryName.lowercase().contains(query)
             }
-        }
+        })
     }
 
 

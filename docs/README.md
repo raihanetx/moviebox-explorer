@@ -1965,6 +1965,7 @@ All paths below are relative to the app root, `moviebox-explorer/`.
 | Change poster tap resolution | `core/.../MovieBoxRepository.resolveDetailTarget()` |
 | Change poster best-match fallback | `core/.../SearchRank.bestMatch()` + `MovieBoxRepository.resolveBestMatch()` |
 | Change risk gating | `core/.../RiskPolicy.kt` + `ui/AdultGate.kt` |
+| Change country exclusions (Nigeria / India) | `core/.../ContentPolicy.kt` (`object ContentPolicy`) + tests in `core/src/test/kotlin/.../ContentPolicyTest.kt` |
 | Change diagnostics checks | `core/.../MovieBoxRepository.diagnostics()` + `ui/DiagnosticsScreen.kt` |
 | Change automated emulator test | `app/src/androidTest/.../DiagnosticsInstrumentedTest.kt` + `.github/workflows/android-ci.yml` |
 | Change settings | `app/.../data/AppSettings.kt` + `SettingsDialog` in `MainActivity.kt` |
