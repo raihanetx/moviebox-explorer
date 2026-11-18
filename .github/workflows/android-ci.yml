@@ -26,11 +26,13 @@ jobs:
       - name: Emulator diagnostics
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 36
-          target: google_apis
+          api-level: 34
+          target: default
           arch: x86_64
           profile: pixel_7
           disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save
+          emulator-boot-timeout: 900
           script: |
             ./gradlew :app:connectedDebugAndroidTest
             adb shell run-as com.example.movieboxexplorer cat files/diagnostics_report.txt > diagnostics_report.txt || true
