@@ -27,6 +27,7 @@ sealed interface CatalogUiState {
         val filters: List<FilterGroup> = emptyList(),
         val filter: CatalogFilter = CatalogFilter(),
         val loadingMore: Boolean = false,
+        val filtering: Boolean = false,
     ) : CatalogUiState
 
     data class Error(val message: String) : CatalogUiState
@@ -44,6 +45,9 @@ class CatalogViewModel(
 
     private val _filter = MutableStateFlow(CatalogFilter())
 
+    /** The filter bar payload is parsed once per screen — the website never changes it. */
+    private var filterConfigCache: List<FilterGroup>? = null
+
     init {
         // Stale-while-revalidate: show the cached grid instantly, refresh behind it.
         cache?.load(gridCacheKey(), CACHE_TTL_MILLIS)?.let { cached ->
@@ -58,20 +62,31 @@ class CatalogViewModel(
 
     fun load() {
         viewModelScope.launch {
-            val hadContent = _state.value is CatalogUiState.Ready
-            if (!hadContent) {
+            val hadContent = _state.value as? CatalogUiState.Ready
+            val currentFilters = filterConfigCache.orEmpty()
+            if (hadContent == null) {
                 _state.value = CatalogUiState.Loading
+            } else {
+                _state.value = hadContent.copy(filtering = true)
             }
             _state.value = try {
                 val content = buildContent(1, _filter.value)
-                val filters = gridFilterConfig()
+                val filters = currentFilters.ifEmpty {
+                    gridFilterConfig().also { filterConfigCache = it }
+                }
                 (content.gridOrNull())?.let { grid ->
                     cache?.save(gridCacheKey(), grid)
                 }
-                CatalogUiState.Ready(content = content, filters = filters, filter = _filter.value)
+                CatalogUiState.Ready(
+                    content = content,
+                    filters = filters,
+                    filter = _filter.value,
+                    filtering = false,
+                )
             } catch (e: Exception) {
-                if (hadContent) {
+                if (hadContent != null) {
                     // Keep showing the stale page; refresh failed quietly.
+                    _state.value = hadContent.copy(filtering = false)
                     return@launch
                 }
                 CatalogUiState.Error(e.message ?: "Failed to load catalogue")
@@ -83,11 +98,7 @@ class CatalogViewModel(
 
     private fun gridCacheKey(): String {
         val f = _filter.value
-        return listOf(
-            "grid", host, kind.name,
-            f.genre ?: "", f.country ?: "", f.year ?: "",
-            f.sort ?: "", f.rate ?: "", f.classify ?: "",
-        ).joinToString("|")
+        return cacheKeyFor(kind, host, f)
     }
 
     /** Loads the next page of a grid catalog, the way the website's "load more" does. */
@@ -162,6 +173,16 @@ class CatalogViewModel(
 
     companion object {
         private const val CACHE_TTL_MILLIS = 10 * 60 * 1000L
+
+        fun cacheKeyFor(
+            kind: CatalogKind,
+            host: String,
+            filter: CatalogFilter = CatalogFilter(),
+        ): String = listOf(
+            "grid", host, kind.name,
+            filter.genre.orEmpty(), filter.country.orEmpty(), filter.year.orEmpty(),
+            filter.sort.orEmpty(), filter.rate.orEmpty(), filter.classify.orEmpty(),
+        ).joinToString("|")
 
         fun factory(
             repository: MovieBoxRepository,

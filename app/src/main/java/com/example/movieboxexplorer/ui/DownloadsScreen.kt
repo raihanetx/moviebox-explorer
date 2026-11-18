@@ -220,43 +220,46 @@ private fun DownloadRow(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Poster vertically centered against the whole row (title, quality, bar, ETA).
-            AsyncImage(
-                model = item.meta.coverUrl.takeIf { it.isNotBlank() },
-                contentDescription = item.displayTitle,
-                modifier = Modifier
-                    .size(width = 62.dp, height = 88.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentScale = ContentScale.Crop,
+            // Title + quality above the bar.
+            Text(
+                text = item.displayTitle,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.displayTitle,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (item.displaySubtitle.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = item.displaySubtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+            if (item.displaySubtitle.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = item.displaySubtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(Modifier.height(10.dp))
 
-            // Progress bar with the three-dot menu on its right edge.
+            // Poster | progress bar (vertically centered with the poster) | ⋮ menu.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Poster vertically centered against the bar.
+                AsyncImage(
+                    model = item.meta.coverUrl.takeIf { it.isNotBlank() },
+                    contentDescription = item.displayTitle,
+                    modifier = Modifier
+                        .size(width = 62.dp, height = 88.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Crop,
+                )
+                Spacer(Modifier.width(12.dp))
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                 if (item.hasSizes) {
                     LinearProgressIndicator(
                         progress = { item.progress },

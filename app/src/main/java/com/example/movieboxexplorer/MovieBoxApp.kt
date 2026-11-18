@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -51,6 +52,7 @@ import coil.Coil
 import coil.ImageLoader
 import com.example.movieboxexplorer.data.AppSettings
 import com.example.movieboxexplorer.data.Downloads
+import com.example.movieboxexplorer.data.TitleCache
 import com.example.movieboxexplorer.data.GridCache
 import com.example.movieboxexplorer.data.HomeCache
 import com.example.movieboxexplorer.data.MovieBoxApi
@@ -101,6 +103,7 @@ internal fun MovieBoxApp() {
     val settings = remember { AppSettings(context) }
     val homeCache = remember { HomeCache(context) }
     val gridCache = remember { GridCache(context) }
+    val titleCache = remember { TitleCache(context) }
     val downloads = remember { Downloads(context) }
     val revision by settings.revision.collectAsStateWithLifecycle()
     val ageGateAccepted by settings.ageGateAcceptedFlow.collectAsStateWithLifecycle()
@@ -139,6 +142,15 @@ internal fun MovieBoxApp() {
         var showSettings by remember { mutableStateOf(false) }
 
         val host = settings.siteHost
+
+        // Warm the three catalog grids in the background on cold start, so the
+        // first switch to each tab is instant (they render from the same SWR
+        // cache the tabs use).
+        LaunchedEffect(host) {
+            launch { runCatching { gridCache.save(com.example.movieboxexplorer.ui.CatalogViewModel.cacheKeyFor(com.example.movieboxexplorer.ui.CatalogKind.MOVIES, host), repository.filmGrid(host)) } }
+            launch { runCatching { gridCache.save(com.example.movieboxexplorer.ui.CatalogViewModel.cacheKeyFor(com.example.movieboxexplorer.ui.CatalogKind.ANIMATED, host), repository.animatedGrid(host)) } }
+            launch { runCatching { gridCache.save(com.example.movieboxexplorer.ui.CatalogViewModel.cacheKeyFor(com.example.movieboxexplorer.ui.CatalogKind.TV, host), repository.seriesGrid(host)) } }
+        }
 
         if (!ageGateAccepted) {
             AdultGateDialog(
@@ -282,7 +294,7 @@ internal fun MovieBoxApp() {
                     val id = entry.arguments?.getString("id").orEmpty()
                     val autoDownload = entry.arguments?.getBoolean("download") ?: false
                     val viewModel: DetailViewModel = viewModel(
-                        factory = DetailViewModel.factory(repository, path, id),
+                        factory = DetailViewModel.factory(repository, path, id, titleCache),
                     )
                     DetailScreen(
                         viewModel = viewModel,

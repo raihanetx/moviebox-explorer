@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
  * @param episodes episodes present in this season
  * @param resolutions how many episodes exist at each quality level
  */
+@Serializable
 data class SeasonInfo(
     val season: Int,
     val episodes: Int,
@@ -21,6 +22,7 @@ data class SeasonInfo(
  * @param seasons per-season breakdown
  * @param resolutions quality levels aggregated over all seasons
  */
+@Serializable
 data class LanguageInfo(
     val label: String,
     val code: String,
@@ -98,6 +100,7 @@ sealed interface CatalogContent {
 }
 
 /** Everything the detail screen renders. */
+@Serializable
 data class TitleInfo(
     val subject: Subject,
     val stars: List<Staff>,

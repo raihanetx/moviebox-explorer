@@ -149,14 +149,25 @@ fun DetailScreen(
     // A download request resolved — hand it to Android's DownloadManager.
     LaunchedEffect(download) {
         val request = download ?: return@LaunchedEffect
-        downloads.enqueue(
-            title = request.title,
-            url = request.url,
-            headers = request.headers,
-            fileName = request.fileName,
-            meta = request.meta,
-        )
+        val queuedId = try {
+            downloads.enqueue(
+                title = request.title,
+                url = request.url,
+                headers = request.headers,
+                fileName = request.fileName,
+                meta = request.meta,
+            )
+        } catch (e: Exception) {
+            -1L
+        }
         viewModel.clearDownload()
+        if (queuedId < 0) {
+            snackbarHostState.showSnackbar(
+                "Download failed — Android refused the request. " +
+                    "If this title is DASH-only, the app can't save it yet.",
+            )
+            return@LaunchedEffect
+        }
         val result = snackbarHostState.showSnackbar(
             message = "Download started — see Downloads",
             actionLabel = "View",

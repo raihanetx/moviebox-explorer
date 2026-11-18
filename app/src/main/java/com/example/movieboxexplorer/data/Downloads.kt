@@ -156,17 +156,36 @@ class Downloads(context: Context) {
 
     // ---------------------------------------------------------------- queue
 
+    class DownloadException(message: String) : Exception(message)
+
     fun enqueue(
         title: String,
         url: String,
         headers: Map<String, String>,
         fileName: String,
         meta: DownloadMeta,
-    ): Long? {
-        val id = enqueueRaw(title, url, headers, fileName) ?: return null
+    ): Long = try {
+        var id = enqueueRaw(title, url, headers, fileName)
+        // A duplicate file name makes DownloadManager throw and the whole
+        // enqueue silently dies — retry once with a unique suffix instead.
+        if (id == null && !fileName.contains("_dup_")) {
+            id = enqueueRaw(
+                title,
+                url,
+                headers,
+                fileName.replace(
+                    Regex("(\\.[^.]+)?$"),
+                    "_dup_${System.currentTimeMillis() % 100000}$1",
+                ),
+            )
+        }
+        id ?: throw DownloadException("Android refused the download (it usually means the URL or file name is invalid).")
         setTrackedIds(trackedIds() + id.toString())
         saveMeta(id, meta)
-        return id
+        id
+    } catch (e: Exception) {
+        if (e is DownloadException) throw e
+        throw DownloadException(e.message ?: "Android refused the download.")
     }
 
     private fun enqueueRaw(
@@ -235,9 +254,11 @@ class Downloads(context: Context) {
         val all = trackedIds().mapNotNull { it.toLongOrNull() }
         if (all.isEmpty()) return emptyList()
 
+        val metaMap = all.mapNotNull { id -> metaOf(id)?.let { id to it } }.toMap()
+
         // Paused entries have no live system row — synthesize them from metadata.
         val pausedItems = all.mapNotNull { id ->
-            val meta = metaOf(id) ?: return@mapNotNull null
+            val meta = metaMap[id] ?: return@mapNotNull null
             if (!meta.paused) return@mapNotNull null
             DownloadItem(
                 id = id,
@@ -249,22 +270,41 @@ class Downloads(context: Context) {
             )
         }
 
-        val liveIds = all.filter { id -> metaOf(id)?.paused != true }
+        val liveIds = all.filter { id -> metaMap[id]?.paused != true }
         val rows = systemItems(liveIds)
         val matched = rows.map { row ->
-            row.copy(meta = metaOf(row.id) ?: DownloadMeta())
+            row.copy(meta = metaMap[row.id] ?: DownloadMeta())
         }
 
-        // Forget entries the system no longer knows and that were not paused.
+        // If the system lost a row (it purges completed entries once the file is
+        // deleted, or after a factory reset of the download manager), keep the
+        // entry visible from our metadata instead of dropping it silently.
+        val synthesized = liveIds
+            .filter { id -> matched.none { it.id == id } }
+            .mapNotNull { id ->
+                val meta = metaMap[id]
+                    ?: return@mapNotNull null
+                DownloadItem(
+                    id = id,
+                    status = DownloadManager.STATUS_FAILED,
+                    downloadedBytes = meta.pausedBytes,
+                    totalBytes = meta.pausedTotal,
+                    localUri = null,
+                    reason = DownloadManager.ERROR_UNKNOWN,
+                    meta = meta,
+                )
+            }
+
+        // Forget entries neither the system nor we can account for.
         val pruned = trackedIds()
             .filter { key ->
                 val id = key.toLongOrNull() ?: return@filter false
-                matched.any { it.id == id } || pausedItems.any { it.id == id }
+                matched.any { it.id == id } || pausedItems.any { it.id == id } || synthesized.any { it.id == id }
             }
             .toSet()
         if (pruned.size != all.size) setTrackedIds(pruned)
 
-        return pausedItems + matched
+        return pausedItems + matched + synthesized
     }
 
     private fun systemItem(id: Long): DownloadItem? = systemItems(listOf(id)).firstOrNull()

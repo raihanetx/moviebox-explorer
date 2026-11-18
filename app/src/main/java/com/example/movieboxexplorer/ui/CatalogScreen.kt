@@ -15,6 +15,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -67,6 +69,7 @@ fun CatalogScreen(
                 filters = current.filters,
                 filter = current.filter,
                 loadingMore = current.loadingMore,
+                filtering = current.filtering,
                 onSelectFilter = viewModel::selectFilter,
                 onLoadMore = viewModel::loadMore,
                 onOpen = onOpen,
@@ -98,6 +101,7 @@ internal fun CatalogContentView(
     modifier: Modifier = Modifier,
     columns: Int = 3,
     onDownload: ((SubjectBrief) -> Unit)? = null,
+    filtering: Boolean = false,
 ) {
     when (content) {
         is CatalogContent.Rows -> LazyColumn(
@@ -118,6 +122,13 @@ internal fun CatalogContentView(
                     filters = filters,
                     selected = filter,
                     onSelect = onSelectFilter,
+                )
+            }
+            if (filtering) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp),
                 )
             }
             PosterGrid(

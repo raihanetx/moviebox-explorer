@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.movieboxexplorer.data.CatalogGrouper
+import com.example.movieboxexplorer.data.TitleCache
 import com.example.movieboxexplorer.data.LanguageFilter
 import com.example.movieboxexplorer.data.LanguageInfo
 import com.example.movieboxexplorer.data.DownloadMeta
@@ -15,6 +16,7 @@ import com.example.movieboxexplorer.data.PlaybackResult
 import com.example.movieboxexplorer.data.PlaybackSource
 import com.example.movieboxexplorer.data.SubjectBrief
 import com.example.movieboxexplorer.data.TitleInfo
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +55,7 @@ class DetailViewModel(
     private val repository: MovieBoxRepository,
     private val detailPath: String,
     private val subjectId: String,
+    private val cache: TitleCache? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<DetailUiState>(DetailUiState.Loading)
@@ -71,25 +74,43 @@ class DetailViewModel(
     val download: StateFlow<DownloadRequest?> = _download.asStateFlow()
 
     init {
+        // Stale-while-revalidate: show the last known good detail payload instantly,
+        // refresh behind it.
+        if (cache != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                cache.load(detailPath, subjectId, CACHE_TTL_MILLIS)?.let { cached ->
+                    _state.value = DetailUiState.Ready(
+                        cached.copy(languages = visibleLanguages(cached)),
+                    )
+                }
+            }
+        }
         load()
     }
 
     fun load() {
         viewModelScope.launch {
-            _state.value = DetailUiState.Loading
+            val hadContent = _state.value is DetailUiState.Ready
+            if (!hadContent) {
+                _state.value = DetailUiState.Loading
+            }
+            val fallback: DetailUiState.Ready? = _state.value as? DetailUiState.Ready
             _state.value = try {
                 val info = repository.loadTitle(detailPath, subjectId)
                     ?.let { it.copy(languages = visibleLanguages(it)) }
                 if (info == null) {
-                    DetailUiState.Error("This title is not available right now")
+                    fallback ?: DetailUiState.Error("This title is not available right now")
                 } else {
-                    _selection.value = info.languages.firstOrNull()?.let { language ->
-                        EpisodeSelection(language, firstSeasonOf(language), 1)
+                    cache?.save(detailPath, subjectId, info)
+                    if (_selection.value == null) {
+                        _selection.value = info.languages.firstOrNull()?.let { language ->
+                            EpisodeSelection(language, firstSeasonOf(language), 1)
+                        }
                     }
                     DetailUiState.Ready(info)
                 }
             } catch (e: Exception) {
-                DetailUiState.Error(e.message ?: "Failed to load title")
+                fallback ?: DetailUiState.Error(e.message ?: "Failed to load title")
             }
         }
 
@@ -279,12 +300,15 @@ class DetailViewModel(
     }
 
     companion object {
+        private const val CACHE_TTL_MILLIS = 10 * 60 * 1000L
+
         fun factory(
             repository: MovieBoxRepository,
             detailPath: String,
             subjectId: String,
+            cache: TitleCache? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { DetailViewModel(repository, detailPath, subjectId) }
+            initializer { DetailViewModel(repository, detailPath, subjectId, cache) }
         }
     }
 }
