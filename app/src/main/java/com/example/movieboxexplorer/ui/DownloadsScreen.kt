@@ -224,8 +224,7 @@ private fun DownloadRow(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Poster — so the row is identifiable at a glance; vertically centered
-            // against the whole row (title, quality, progress bar and size/ETA).
+            // Poster vertically centered against the whole row (title, quality, bar, ETA).
             AsyncImage(
                 model = item.meta.coverUrl.takeIf { it.isNotBlank() },
                 contentDescription = item.displayTitle,
