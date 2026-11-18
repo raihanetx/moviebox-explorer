@@ -13,9 +13,11 @@ import com.example.movieboxexplorer.data.FilterGroup
 import com.example.movieboxexplorer.data.GridCache
 import com.example.movieboxexplorer.data.MovieBoxRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class CatalogKind { MOVIES, ANIMATED, TV }
 
@@ -50,12 +52,17 @@ class CatalogViewModel(
 
     init {
         // Stale-while-revalidate: show the cached grid instantly, refresh behind it.
-        cache?.load(gridCacheKey(), CACHE_TTL_MILLIS)?.let { cached ->
-            _state.value = CatalogUiState.Ready(
-                content = CatalogContent.Grid(cached),
-                filters = emptyList(),
-                filter = _filter.value,
-            )
+        // The cache lives on disk and parsing it is CPU + I/O work — never do it
+        // on the main thread.
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = cache?.load(gridCacheKey(), CACHE_TTL_MILLIS)
+            if (cached != null) {
+                _state.value = CatalogUiState.Ready(
+                    content = CatalogContent.Grid(cached),
+                    filters = emptyList(),
+                    filter = _filter.value,
+                )
+            }
         }
         load()
     }
@@ -75,7 +82,7 @@ class CatalogViewModel(
                     gridFilterConfig().also { filterConfigCache = it }
                 }
                 (content.gridOrNull())?.let { grid ->
-                    cache?.save(gridCacheKey(), grid)
+                    withContext(Dispatchers.IO) { cache?.save(gridCacheKey(), grid) }
                 }
                 CatalogUiState.Ready(
                     content = content,

@@ -17,6 +17,7 @@ import com.example.movieboxexplorer.data.PlaybackSource
 import com.example.movieboxexplorer.data.SubjectBrief
 import com.example.movieboxexplorer.data.TitleInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -96,12 +97,14 @@ class DetailViewModel(
             }
             val fallback: DetailUiState.Ready? = _state.value as? DetailUiState.Ready
             _state.value = try {
-                val info = repository.loadTitle(detailPath, subjectId)
-                    ?.let { it.copy(languages = visibleLanguages(it)) }
+                val info = withContext(Dispatchers.IO) {
+                    repository.loadTitle(detailPath, subjectId)
+                        ?.let { it.copy(languages = visibleLanguages(it)) }
+                }
                 if (info == null) {
                     fallback ?: DetailUiState.Error("This title is not available right now")
                 } else {
-                    cache?.save(detailPath, subjectId, info)
+                    withContext(Dispatchers.IO) { cache?.save(detailPath, subjectId, info) }
                     if (_selection.value == null) {
                         _selection.value = info.languages.firstOrNull()?.let { language ->
                             EpisodeSelection(language, firstSeasonOf(language), 1)
@@ -114,7 +117,7 @@ class DetailViewModel(
             }
         }
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             runCatching { repository.related(subjectId) }
                 .onSuccess { _related.value = CatalogGrouper.dedupeForDisplay(it) }
             }

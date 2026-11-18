@@ -26,6 +26,8 @@ fun main(args: Array<String>) = runBlocking {
         "diagnostics" -> cmd_diagnostics(keyword, explicitPath, args, api, repository)
         "home-parts" -> cmd_home_parts(keyword, explicitPath, args, api, repository)
         "timing" -> cmd_timing(keyword, explicitPath, args, api, repository)
+        "country-audit" -> cmd_country_audit(keyword, explicitPath, args, api, repository)
+        "country-audit2" -> cmd_country_audit2(keyword, explicitPath, args, api, repository)
         "home-time" -> cmd_home_time(keyword, explicitPath, args, api, repository)
         "mobile" -> cmd_mobile(keyword, explicitPath, args, api, repository)
         "titles" -> cmd_titles(keyword, explicitPath, args, api, repository)

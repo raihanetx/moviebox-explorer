@@ -400,26 +400,37 @@ class MovieBoxRepository(
         episode: Int = 1,
         preferredResolution: Int? = null,
     ): PlaybackResult {
+        val cacheKey = playbackCache.key(detailPath, subjectId, season, episode, preferredResolution)
+        playbackCache.get(cacheKey)?.let { return it }
+
         val data = api.play(detailPath, subjectId, season, episode)
             ?: return PlaybackResult.Failed("Could not reach the catalogue")
 
-        data.lockReason()?.let { return PlaybackResult.Locked(it) }
+        data.lockReason()?.let {
+            return PlaybackResult.Locked(it).also { result -> playbackCache.put(cacheKey, result) }
+        }
 
         val headers = mapOf(
             "Referer" to api.cdnReferer(),
             "User-Agent" to PLAYBACK_USER_AGENT,
         )
         val source = selectPlaybackSource(data, headers, preferredResolution)
-        if (source != null) return PlaybackResult.Ready(source)
+        if (source != null) {
+            val ready = PlaybackResult.Ready(source)
+            playbackCache.put(cacheKey, ready)
+            return ready
+        }
 
         return if (data.hasResource) {
             PlaybackResult.Failed("No playable rendition for this episode")
         } else {
-            PlaybackResult.NoResource
+            PlaybackResult.NoResource.also { playbackCache.put(cacheKey, it) }
         }
     }
 
     /** Subtitle tracks of one episode. */
+    private val playbackCache = PlaybackCache()
+
     suspend fun captions(
         detailPath: String,
         subjectId: String,

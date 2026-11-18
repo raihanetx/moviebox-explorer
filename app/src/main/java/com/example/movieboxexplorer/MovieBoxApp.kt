@@ -79,6 +79,7 @@ import com.example.movieboxexplorer.ui.RankingViewModel
 import com.example.movieboxexplorer.ui.SearchScreen
 import com.example.movieboxexplorer.ui.SearchViewModel
 import com.example.movieboxexplorer.ui.theme.MovieBoxTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 private data class TopDestination(
@@ -145,8 +146,10 @@ internal fun MovieBoxApp() {
 
         // Warm the three catalog grids in the background on cold start, so the
         // first switch to each tab is instant (they render from the same SWR
-        // cache the tabs use).
+        // cache the tabs use). Delayed so the first paint never competes with the
+        // home page's own network — on a cold start those bytes matter more.
         LaunchedEffect(host) {
+            delay(2_000)
             launch { runCatching { gridCache.save(com.example.movieboxexplorer.ui.CatalogViewModel.cacheKeyFor(com.example.movieboxexplorer.ui.CatalogKind.MOVIES, host), repository.filmGrid(host)) } }
             launch { runCatching { gridCache.save(com.example.movieboxexplorer.ui.CatalogViewModel.cacheKeyFor(com.example.movieboxexplorer.ui.CatalogKind.ANIMATED, host), repository.animatedGrid(host)) } }
             launch { runCatching { gridCache.save(com.example.movieboxexplorer.ui.CatalogViewModel.cacheKeyFor(com.example.movieboxexplorer.ui.CatalogKind.TV, host), repository.seriesGrid(host)) } }
