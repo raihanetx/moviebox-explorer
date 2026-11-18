@@ -10,12 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,7 +22,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -37,7 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.movieboxexplorer.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -82,19 +78,20 @@ import com.example.movieboxexplorer.ui.theme.MovieBoxTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+/** Icon-only destination: the bottom bar has six tabs, so names do not fit. */
 private data class TopDestination(
     val route: String,
     val label: String,
-    val icon: ImageVector,
+    val icon: @Composable () -> Unit,
 )
 
 private val TOP_DESTINATIONS = listOf(
-    TopDestination("home", "Home", Icons.Default.Home),
-    TopDestination("movies", "Movies", Icons.Default.PlayArrow),
-    TopDestination("animation", "Animation", Icons.Default.PlayArrow),
-    TopDestination("tv", "TV", Icons.Default.Favorite),
-    TopDestination("downloads", "Downloads", Icons.Default.ShoppingCart),
-    TopDestination("search", "Search", Icons.Default.Search),
+    TopDestination("home", "Home", { Icon(Icons.Default.Home, contentDescription = "Home") }),
+    TopDestination("movies", "Movies", { Icon(painterResource(R.drawable.ic_movies), contentDescription = "Movies") }),
+    TopDestination("animation", "Animation", { Icon(painterResource(R.drawable.ic_animation), contentDescription = "Animation") }),
+    TopDestination("tv", "TV", { Icon(painterResource(R.drawable.ic_tv), contentDescription = "TV") }),
+    TopDestination("downloads", "Downloads", { Icon(painterResource(R.drawable.ic_downloads), contentDescription = "Downloads") }),
+    TopDestination("search", "Search", { Icon(Icons.Default.Search, contentDescription = "Search") }),
 )
 
 
@@ -176,8 +173,7 @@ internal fun MovieBoxApp() {
                                         restoreState = true
                                     }
                                 },
-                                icon = { Icon(destination.icon, contentDescription = destination.label) },
-                                label = { Text(destination.label) },
+                                icon = destination.icon,
                             )
                         }
                     }

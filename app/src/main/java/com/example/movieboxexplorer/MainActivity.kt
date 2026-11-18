@@ -3,6 +3,7 @@ package com.example.movieboxexplorer
 import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,7 @@ import com.example.movieboxexplorer.ui.theme.MovieBoxTheme
 import okhttp3.OkHttpClient
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         // The poster CDN can reject requests that do not look like they came from
