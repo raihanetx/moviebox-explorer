@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -260,13 +261,23 @@ private fun DownloadRow(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                if (item.hasSizes) {
+                if (item.isComplete) {
+                    Text(
+                        text = "✓",
+                        color = Color(0xFF34C759),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(end = 6.dp),
+                    )
+                }
+                if (item.hasSizes || item.isComplete) {
                     LinearProgressIndicator(
-                        progress = { item.progress },
+                        progress = { if (item.isComplete) 1f else item.progress },
                         modifier = Modifier
                             .weight(1f)
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp)),
+                        color = if (item.isComplete) Color(0xFF34C759) else MaterialTheme.colorScheme.primary,
                     )
                 } else {
                     LinearProgressIndicator(
@@ -343,10 +354,10 @@ private fun DownloadRow(
             Text(
                 text = bottomLine(context, item),
                 style = MaterialTheme.typography.labelMedium,
-                color = if (item.isFailed) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                color = when {
+                    item.isFailed -> MaterialTheme.colorScheme.error
+                    item.isComplete -> Color(0xFF34C759)
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
             }
@@ -362,7 +373,7 @@ private fun bottomLine(
     val done = item.downloadedBytes.takeIf { it > 0 }
     return when {
         item.isFailed -> "Failed · ${reasonLabel(item.reason)}"
-        item.isComplete -> "Downloaded · " +
+        item.isComplete -> "✓ Downloaded · " +
             Formatter.formatShortFileSize(context, item.totalBytes)
         item.isPausedUi -> {
             val kept = done?.let { Formatter.formatShortFileSize(context, it) }

@@ -304,7 +304,8 @@ class Downloads(context: Context) {
             .toSet()
         if (pruned.size != all.size) setTrackedIds(pruned)
 
-        return pausedItems + matched + synthesized
+        return (pausedItems + matched + synthesized)
+            .sortedWith(compareBy({ it.meta.mediaTitle.lowercase() }, { it.meta.season }, { it.meta.episode }))
     }
 
     private fun systemItem(id: Long): DownloadItem? = systemItems(listOf(id)).firstOrNull()

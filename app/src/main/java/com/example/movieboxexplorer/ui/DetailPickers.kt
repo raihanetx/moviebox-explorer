@@ -319,9 +319,9 @@ internal fun DownloadSheet(
             } else {
                 Text(
                     text = if (info.isMovie) {
-                        "Download · $selectedLabel"
+                        "Download · ${language?.label ?: ""} · $selectedLabel"
                     } else {
-                        "Download S$season E$episode · $selectedLabel"
+                        "Download S$season E$episode · ${language?.label ?: ""} · $selectedLabel"
                     },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
