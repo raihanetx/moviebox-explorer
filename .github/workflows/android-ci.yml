@@ -23,7 +23,11 @@ jobs:
       - name: Unit tests and debug APK
         run: ./gradlew :core:test :app:assembleDebug
 
+      # Free GitHub VMs have no KVM — the emulator runs with -accel off and never
+      # finishes booting, and the geo-blocked runner can't reach the backends anyway.
+      # Diagnostics still run on demand via Actions > Android CI > Run workflow.
       - name: Emulator diagnostics
+        if: github.event_name == 'workflow_dispatch'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -39,6 +43,7 @@ jobs:
             adb logcat -d -s DiagnosticsTest:I > logcat.txt || true
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: diagnostics
           path: |
