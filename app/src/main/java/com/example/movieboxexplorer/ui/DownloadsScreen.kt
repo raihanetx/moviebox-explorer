@@ -1,8 +1,5 @@
 package com.example.movieboxexplorer.ui
 
-import android.content.Intent
-import android.net.Uri
-import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,12 +18,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -34,34 +30,36 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.movieboxexplorer.data.DownloadItem
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun DownloadsScreen(
     viewModel: DownloadsViewModel,
     onBack: () -> Unit,
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
-    val active = items.count { it.isActive }
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    var selectMode by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(setOf<Long>()) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { message ->
@@ -69,50 +67,96 @@ fun DownloadsScreen(
         }
     }
 
+    LaunchedEffect(selected) {
+        if (selectMode && selected.isEmpty()) selectMode = false
+    }
+
+    val downloading = items.filter { it.isActive }
+    val paused = items.filter { it.isPausedUi }
+    val failed = items.filter { it.isFailed }
+    val done = items.filter { it.isComplete }
+
     Scaffold(
+        containerColor = DlBg,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Downloads", fontWeight = FontWeight.Bold)
-                        if (items.isNotEmpty()) {
-                            Text(
-                                text = if (active > 0) "$active downloading" else "Nothing downloading",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (selectMode) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "${selected.size} selected",
+                            color = DlText,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    },
+                    navigationIcon = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            selectMode = false
+                            selected = emptySet()
+                        }) {
+                            Text("Cancel", color = DlText2, fontWeight = FontWeight.SemiBold)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = DlBg),
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("Downloads", color = DlText, fontWeight = FontWeight.Bold)
+                            if (items.isNotEmpty()) {
+                                val active = items.count { it.isActive }
+                                Text(
+                                    text = if (active > 0) "$active downloading" else "Manage your offline Library",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DlText3,
+                                )
+                            } else {
+                                Text(
+                                    text = "Manage your offline Library",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DlText3,
+                                )
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = DlText2,
                             )
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                        )
-                    }
-                },
-            )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = DlBg),
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         if (items.isEmpty()) {
-            Column(
+            Box(
                 modifier = Modifier
                     .padding(padding)
-                    .fillMaxSize()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center,
             ) {
-                Text("No downloads yet", fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "Tap the download icon on any poster — or the Download button on a title — to save an episode or movie.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "No downloads yet",
+                        color = DlText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Download episodes to watch them offline — anytime, anywhere.",
+                        color = DlText3,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp),
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -120,295 +164,207 @@ fun DownloadsScreen(
                     .padding(padding)
                     .fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                val downloading = items.filter { it.isActive }
-                val paused = items.filter { it.isPausedUi }
-                val failed = items.filter { it.isFailed }
-                val done = items.filter { it.isComplete }
-
-                if (downloading.isNotEmpty()) {
-                    item(key = "active-title") { SectionLabel("Downloading") }
+                if (downloading.isNotEmpty() || paused.isNotEmpty()) {
+                    item(key = "downloading-header") {
+                        SectionHeader(
+                            title = "Downloading",
+                            count = downloading.size + paused.size,
+                            iconColor = DlPrimary,
+                        )
+                    }
+                    // downloading items
                     items(downloading, key = { it.id }) { item ->
                         DownloadRow(
                             item = item,
+                            selectMode = false,
+                            selected = false,
+                            onSelectToggle = {},
+                            onLongPress = {},
                             onPause = { viewModel.pause(item.id) },
                             onResume = { viewModel.resume(item.id) },
                             onDelete = { viewModel.delete(item.id) },
+                            onPlay = {},
                         )
                     }
-                }
-                if (paused.isNotEmpty()) {
-                    item(key = "paused-title") { SectionLabel("Paused") }
+                    // paused items (dimmed) inside the same section
                     items(paused, key = { it.id }) { item ->
                         DownloadRow(
                             item = item,
+                            selectMode = false,
+                            selected = false,
+                            onSelectToggle = {},
+                            onLongPress = {},
                             onPause = { viewModel.pause(item.id) },
                             onResume = { viewModel.resume(item.id) },
                             onDelete = { viewModel.delete(item.id) },
+                            onPlay = {},
                         )
                     }
                 }
                 if (failed.isNotEmpty()) {
-                    item(key = "failed-title") { SectionLabel("Failed") }
+                    item(key = "failed-header") {
+                        SectionHeader(
+                            title = "Failed",
+                            count = failed.size,
+                            iconColor = DlDanger,
+                        )
+                    }
                     items(failed, key = { it.id }) { item ->
                         DownloadRow(
                             item = item,
+                            selectMode = false,
+                            selected = false,
+                            onSelectToggle = {},
+                            onLongPress = {},
                             onPause = { viewModel.pause(item.id) },
                             onResume = { viewModel.resume(item.id) },
                             onDelete = { viewModel.delete(item.id) },
+                            onPlay = {},
                         )
                     }
                 }
                 if (done.isNotEmpty()) {
-                    item(key = "done-title") { SectionLabel("Downloaded") }
+                    item(key = "downloaded-header") {
+                        SectionHeader(
+                            title = "Downloaded",
+                            count = done.size,
+                            iconColor = DlPositive,
+                            onSelectAll = if (selectMode) {
+                                {
+                                    val allSelected = done.all { selected.contains(it.id) }
+                                    if (allSelected) {
+                                        selected = selected - done.map { it.id }.toSet()
+                                    } else {
+                                        selected = selected + done.map { it.id }.toSet()
+                                    }
+                                }
+                            } else null,
+                            selectMode = selectMode,
+                        )
+                    }
                     items(done, key = { it.id }) { item ->
                         DownloadRow(
                             item = item,
+                            selectMode = selectMode,
+                            selected = selected.contains(item.id),
+                            onSelectToggle = {
+                                selected = if (selected.contains(item.id)) {
+                                    selected - item.id
+                                } else {
+                                    selected + item.id
+                                }
+                            },
+                            onLongPress = {
+                                selectMode = true
+                                selected = selected + item.id
+                            },
                             onPause = { viewModel.pause(item.id) },
                             onResume = { viewModel.resume(item.id) },
                             onDelete = { viewModel.delete(item.id) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text.uppercase(),
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.Bold,
-    )
-}
-
-/** The three-dot affordance — drawn, so it works on every icon pack. */
-@Composable
-private fun MoreVertIcon() {
-    Column(
-        modifier = Modifier.padding(2.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        repeat(3) {
-            Box(
-                modifier = Modifier
-                    .size(4.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurface),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DownloadRow(
-    item: DownloadItem,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val context = LocalContext.current
-    var menuOpen by remember { mutableStateOf(false) }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-        ) {
-            // Title + quality above the bar.
-            Text(
-                text = item.displayTitle,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.displaySubtitle.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = item.displaySubtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-
-            // Poster | progress bar (vertically centered with the poster) | ⋮ menu.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Poster vertically centered against the bar.
-                AsyncImage(
-                    model = item.meta.coverUrl.takeIf { it.isNotBlank() },
-                    contentDescription = item.displayTitle,
-                    modifier = Modifier
-                        .size(width = 62.dp, height = 88.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop,
-                )
-                Spacer(Modifier.width(12.dp))
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                if (item.isComplete) {
-                    Text(
-                        text = "✓",
-                        color = Color(0xFF34C759),
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(end = 6.dp),
-                    )
-                }
-                if (item.hasSizes || item.isComplete) {
-                    LinearProgressIndicator(
-                        progress = { if (item.isComplete) 1f else item.progress },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = if (item.isComplete) Color(0xFF34C759) else MaterialTheme.colorScheme.primary,
-                    )
-                } else {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                    )
-                }
-                Spacer(Modifier.width(6.dp))
-                Box {
-                    IconButton(
-                        onClick = { menuOpen = true },
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        MoreVertIcon()
-                    }
-                    DropdownMenu(
-                        expanded = menuOpen,
-                        onDismissRequest = { menuOpen = false },
-                    ) {
-                        when {
-                            item.isComplete -> DropdownMenuItem(
-                                text = { Text("Play") },
-                                onClick = {
-                                    menuOpen = false
-                                    item.localUri?.let { uri ->
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(Uri.parse(uri), "video/*")
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(intent)
+                            onPlay = {
+                                item.localUri?.let { uri ->
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                        setDataAndType(android.net.Uri.parse(uri), "video/*")
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
-                                },
-                            )
-
-                            item.isPausedUi -> DropdownMenuItem(
-                                text = { Text("Resume") },
-                                onClick = {
-                                    menuOpen = false
-                                    onResume()
-                                },
-                            )
-
-                            item.isFailed -> DropdownMenuItem(
-                                text = { Text("Retry") },
-                                onClick = {
-                                    menuOpen = false
-                                    onResume()
-                                },
-                            )
-
-                            else -> DropdownMenuItem(
-                                text = { Text("Pause") },
-                                onClick = {
-                                    menuOpen = false
-                                    onPause()
-                                },
-                            )
-                        }
-                        DropdownMenuItem(
-                            text = { Text("Delete") },
-                            onClick = {
-                                menuOpen = false
-                                onDelete()
+                                    context.startActivity(intent)
+                                }
                             },
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
+        }
 
-            // Bottom line: how much is done and how long it could take.
-            Text(
-                text = bottomLine(context, item),
-                style = MaterialTheme.typography.labelMedium,
-                color = when {
-                    item.isFailed -> MaterialTheme.colorScheme.error
-                    item.isComplete -> Color(0xFF34C759)
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
+        // Fixed action bar in select mode.
+        if (selectMode && selected.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 20.dp),
+                    shape = RoundedCornerShape(25.dp),
+                    color = DlDanger,
+                    shadowElevation = 8.dp,
+                ) {
+                    Button(
+                        onClick = {
+                            selected.forEach { id -> viewModel.delete(id) }
+                            selected = emptySet()
+                            selectMode = false
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DlDanger,
+                            contentColor = Color(0xFF0F1116),
+                        ),
+                        shape = RoundedCornerShape(25.dp),
+                    ) {
+                        Text(
+                            text = "Delete ${selected.size} item${if (selected.size == 1) "" else "s"}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-private fun bottomLine(
-    context: android.content.Context,
-    item: DownloadItem,
-): String {
-    val size = item.totalBytes.takeIf { it > 0 }
-    val done = item.downloadedBytes.takeIf { it > 0 }
-    return when {
-        item.isFailed -> "Failed · ${reasonLabel(item.reason)}"
-        item.isComplete -> "✓ Downloaded · " +
-            Formatter.formatShortFileSize(context, item.totalBytes)
-        item.isPausedUi -> {
-            val kept = done?.let { Formatter.formatShortFileSize(context, it) }
-            if (kept != null && size != null) {
-                "Paused · $kept of ${Formatter.formatShortFileSize(context, size)} kept — resume starts over"
-            } else {
-                "Paused — resume starts over"
+@Composable
+private fun SectionHeader(
+    title: String,
+    count: Int,
+    iconColor: Color,
+    onSelectAll: (() -> Unit)? = null,
+    selectMode: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 5.dp, end = 4.dp, top = 4.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // section icon (download/downloaded)
+        Box(
+            modifier = Modifier.size(18.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            // simple circle indicator
+            androidx.compose.foundation.Canvas(modifier = Modifier.size(18.dp)) {
+                drawCircle(color = iconColor, radius = 6.dp.toPx())
             }
         }
-        item.isActive && size != null && done != null -> {
-            val progress = "${Formatter.formatShortFileSize(context, done)} of " +
-                Formatter.formatShortFileSize(context, size)
-            val eta = item.etaSeconds?.let { " · ${etaLabel(it)}" } ?: ""
-            "$progress · ${item.percent}%$eta"
+        Text(
+            text = "$title ($count)",
+            color = DlText,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.2).sp,
+        )
+        if (selectMode && onSelectAll != null) {
+            androidx.compose.material3.TextButton(
+                onClick = onSelectAll,
+                modifier = Modifier.padding(start = 4.dp),
+            ) {
+                Text(
+                    text = "Select all",
+                    color = DlPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
-        item.isActive -> "Downloading…"
-        else -> "Unknown"
     }
-}
-
-private fun etaLabel(seconds: Int): String = when {
-    seconds < 60 -> "≈ $seconds s left"
-    seconds < 3600 -> "≈ ${seconds / 60} min left"
-    else -> "≈ ${seconds / 3600} h ${(seconds % 3600) / 60} min left"
-}
-
-private fun reasonLabel(reason: Int): String = when (reason) {
-    android.app.DownloadManager.ERROR_CANNOT_RESUME -> "cannot resume"
-    android.app.DownloadManager.ERROR_DEVICE_NOT_FOUND -> "storage missing"
-    android.app.DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "file exists"
-    android.app.DownloadManager.ERROR_FILE_ERROR -> "file error"
-    android.app.DownloadManager.ERROR_HTTP_DATA_ERROR -> "server data error"
-    android.app.DownloadManager.ERROR_INSUFFICIENT_SPACE -> "not enough space"
-    android.app.DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "too many redirects"
-    android.app.DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "server refused"
-    android.app.DownloadManager.ERROR_UNKNOWN -> "unknown"
-    else -> "error $reason"
 }
