@@ -1,0 +1,39 @@
+name: Publish latest APK
+
+# Keeps the stable "latest" release (and its app-debug.apk asset) in sync with
+# every push to main, so a single bookmarked URL always fetches the newest build:
+#   https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Update "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          body: |
+            Always the newest debug build. Permanent download URL:
+            https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk
+          prerelease: false
+          make_latest: true
+          files: app/build/outputs/apk/debug/app-debug.apk
+          fail_on_unmatched_files: true
