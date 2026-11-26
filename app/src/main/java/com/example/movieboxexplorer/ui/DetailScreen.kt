@@ -87,6 +87,27 @@ import com.example.movieboxexplorer.data.SubjectBrief
 import com.example.movieboxexplorer.data.TitleInfo
 import kotlinx.coroutines.launch
 
+
+private fun com.example.movieboxexplorer.data.Subject.toBrief(): com.example.movieboxexplorer.data.SubjectBrief =
+    com.example.movieboxexplorer.data.SubjectBrief(
+        subjectId = subjectId,
+        subjectType = subjectType,
+        title = title,
+        description = description,
+        releaseDate = releaseDate,
+        duration = duration,
+        genre = genre,
+        countryName = countryName,
+        imdbRatingValue = imdbRatingValue,
+        imdbRatingCount = imdbRatingCount,
+        subtitles = subtitles,
+        hasResource = hasResource,
+        detailPath = detailPath.ifBlank { detailUrl },
+        cover = cover,
+        webHighRisk = webHighRisk,
+        isPornographic = isPornographic,
+    )
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
@@ -118,7 +139,9 @@ fun DetailScreen(
     val scope = rememberCoroutineScope()
 
     var showInfo by remember { mutableStateOf(false) }
-    var saved by remember { mutableStateOf(false) }
+    val savedList = remember { com.example.movieboxexplorer.data.SavedList(context) }
+    var savedTick by remember { mutableStateOf(0) }
+    val saved = savedTick >= 0 && (state as? DetailUiState.Ready)?.let { savedList.isSaved(it.info.subject.toBrief()) } == true
     var downloaded by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
@@ -319,10 +342,14 @@ fun DetailScreen(
                         onPlay = { showPicker = true },
                         onPlayTrailer = onPlayTrailer,
                         onToggleSaved = {
-                            saved = !saved
+                            val subject = (state as DetailUiState.Ready).info.subject.toBrief()
+                            val isMovie = (state as DetailUiState.Ready).info.isMovie
+                            val wasSaved = savedList.isSaved(subject)
+                            savedList.toggle(subject, isMovie)
+                            savedTick++
                             scope.launch {
                                 snackbarHostState.showSnackbar(
-                                    if (saved) "Added to My List" else "Removed from My List"
+                                    if (!wasSaved) "Added to My List" else "Removed from My List"
                                 )
                             }
                         },

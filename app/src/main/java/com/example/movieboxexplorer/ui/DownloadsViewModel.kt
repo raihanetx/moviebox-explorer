@@ -1,5 +1,8 @@
 package com.example.movieboxexplorer.ui
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -36,12 +39,44 @@ class DownloadsViewModel(
     private val speeds = mutableMapOf<Long, Float>()
     private val lastBytes = mutableMapOf<Long, Pair<Long, Long>>()
 
+    /** Guards against concurrent retry attempts on the same entry. */
+    private val retrying = mutableSetOf<Long>()
+
+    private val connectivity =
+        downloads.context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+    /** Network or VPN came back — retry anything that failed with a fresh URL. */
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            viewModelScope.launch { retryFailed() }
+        }
+    }
+
     init {
+        runCatching { connectivity.registerDefaultNetworkCallback(networkCallback) }
         viewModelScope.launch {
             while (isActive) {
                 _items.value = withContext(Dispatchers.IO) { poll() }
                 delay(1_000)
             }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        runCatching { connectivity.unregisterNetworkCallback(networkCallback) }
+    }
+
+    /** Retry every failed (not paused) download once, with a freshly resolved URL. */
+    fun retryFailed() {
+        _items.value.filter { it.isFailed }.forEach { retry(it.id) }
+    }
+
+    fun retry(id: Long) {
+        if (!retrying.add(id)) return
+        viewModelScope.launch {
+            resume(id)
+            retrying.remove(id)
         }
     }
 
@@ -100,12 +135,15 @@ class DownloadsViewModel(
                 _events.tryEmit("Nothing to resume")
                 return@launch
             }
+            // Always re-resolve a FRESH signed URL for a retry/resume — never
+            // replay a cached one; the previous attempt may have invalidated it.
             when (val result = repository.playEpisode(
                 detailPath = meta.detailPath,
                 subjectId = meta.subjectId,
                 season = meta.season.coerceAtLeast(1),
                 episode = meta.episode.coerceAtLeast(1),
                 preferredResolution = meta.preferredResolution,
+                useCache = false,
             )) {
                 is PlaybackResult.Ready -> {
                     val freshId = withContext(Dispatchers.IO) {

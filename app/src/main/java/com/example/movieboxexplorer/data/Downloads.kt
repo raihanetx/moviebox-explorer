@@ -151,6 +151,9 @@ class Downloads(context: Context) {
         prefs.edit().remove(metaKey(id)).apply()
     }
 
+    /** Application context for callers that need it (network callbacks). */
+    val context: Context get() = appContext
+
     /** Live and paused entries together, for the Downloads tab. */
     fun allIds(): Set<String> = trackedIds()
 
@@ -207,8 +210,24 @@ class Downloads(context: Context) {
             )
 
         headers.forEach { (key, value) -> request.addRequestHeader(key, value) }
+        // A stale partial file from a previous attempt would make the system
+        // reject the re-enqueue (ERROR_FILE_ALREADY_EXISTS) — clear it first.
+        deletePartial(fileName)
         return runCatching { manager.enqueue(request) }.getOrNull()
     }
+
+    /** Removes a leftover partial file at the app's download destination. */
+    private fun deletePartial(fileName: String) {
+        runCatching {
+            val dir = appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return@runCatching
+            val target = java.io.File(dir, fileName)
+            if (target.exists()) target.delete()
+        }
+    }
+
+    /** True when a destination name is already used by another live download. */
+    private fun nameTaken(fileName: String): Boolean = systemItems(trackedIds().mapNotNull { it.toLongOrNull() })
+        .any { it.meta.fileName == fileName }
 
     /**
      * Pause a running download.
@@ -242,10 +261,18 @@ class Downloads(context: Context) {
         headers: Map<String, String>,
     ): Long? {
         val meta = metaOf(id) ?: return null
-        val fresh = enqueueRaw(meta.mediaTitle.ifBlank { meta.fileName }, url, headers, meta.fileName)
+        // Cancel the old (failed/paused) system entry and clear its partial file
+        // so re-enqueueing can't collide, then use a unique destination name.
+        runCatching { manager.remove(id) }
+        deletePartial(meta.fileName)
+        var freshName = meta.fileName
+        if (nameTaken(freshName)) {
+            freshName = meta.fileName.replace(Regex("(\\.[^.]+)?$"), "_retry_${System.currentTimeMillis() % 100000}$1")
+        }
+        val fresh = enqueueRaw(meta.mediaTitle.ifBlank { meta.fileName }, url, headers, freshName)
             ?: return null
         setTrackedIds((trackedIds() - id.toString()) + fresh.toString())
-        saveMeta(fresh, meta.copy(paused = false, pausedBytes = 0, pausedTotal = 0))
+        saveMeta(fresh, meta.copy(paused = false, pausedBytes = 0, pausedTotal = 0, fileName = freshName))
         removeMeta(id)
         return fresh
     }

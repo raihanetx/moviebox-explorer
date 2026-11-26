@@ -83,6 +83,7 @@ internal fun SettingsDialog(
     onDismiss: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenSaved: () -> Unit = {},
 ) {
     var apiBase by remember { mutableStateOf(settings.apiBase) }
     var siteHost by remember { mutableStateOf(settings.siteHost) }
@@ -143,6 +144,11 @@ internal fun SettingsDialog(
                     onClick = onOpenDownloads,
                     modifier = Modifier.padding(top = 4.dp),
                 ) { Text("Downloads") }
+
+                TextButton(
+                    onClick = onOpenSaved,
+                    modifier = Modifier.padding(top = 4.dp),
+                ) { Text("Saved") }
 
                 TextButton(
                     onClick = onOpenDiagnostics,

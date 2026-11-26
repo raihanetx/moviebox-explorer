@@ -103,6 +103,7 @@ internal fun MovieBoxApp() {
     val gridCache = remember { GridCache(context) }
     val titleCache = remember { TitleCache(context) }
     val downloads = remember { Downloads(context) }
+    val savedList = remember { com.example.movieboxexplorer.data.SavedList(context) }
     val revision by settings.revision.collectAsStateWithLifecycle()
     val ageGateAccepted by settings.ageGateAcceptedFlow.collectAsStateWithLifecycle()
     val allowAdult by settings.adultContentFlow.collectAsStateWithLifecycle()
@@ -246,6 +247,14 @@ internal fun MovieBoxApp() {
                     )
                 }
 
+                composable("saved") {
+                    com.example.movieboxexplorer.ui.SavedScreen(
+                        savedList = savedList,
+                        onBack = { navController.popBackStack() },
+                        onOpen = { subject -> openDetail(subject) },
+                    )
+                }
+
                 composable("ranking") {
                     val viewModel: RankingViewModel = viewModel(
                         factory = RankingViewModel.factory(repository),
@@ -359,6 +368,10 @@ internal fun MovieBoxApp() {
                 onOpenDownloads = {
                     showSettings = false
                     navController.navigate("downloads")
+                },
+                onOpenSaved = {
+                    showSettings = false
+                    navController.navigate("saved")
                 },
             )
         }

@@ -227,6 +227,7 @@ class DetailViewModel(
                 season = selection.season,
                 episode = selection.episode,
                 preferredResolution = quality,
+                useCache = false, // downloads always get a fresh signed URL
             )
             when (result) {
                 is PlaybackResult.Ready -> {

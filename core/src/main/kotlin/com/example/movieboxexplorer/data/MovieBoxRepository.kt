@@ -417,15 +417,16 @@ class MovieBoxRepository(
         season: Int = 1,
         episode: Int = 1,
         preferredResolution: Int? = null,
+        useCache: Boolean = true,
     ): PlaybackResult {
         val cacheKey = playbackCache.key(detailPath, subjectId, season, episode, preferredResolution)
-        playbackCache.get(cacheKey)?.let { return it }
+        if (useCache) playbackCache.get(cacheKey)?.let { return it }
 
         val data = api.play(detailPath, subjectId, season, episode)
             ?: return PlaybackResult.Failed("Could not reach the catalogue")
 
         data.lockReason()?.let {
-            return PlaybackResult.Locked(it).also { result -> playbackCache.put(cacheKey, result) }
+            return PlaybackResult.Locked(it).also { result -> if (useCache) playbackCache.put(cacheKey, result) }
         }
 
         val headers = mapOf(
@@ -435,14 +436,14 @@ class MovieBoxRepository(
         val source = selectPlaybackSource(data, headers, preferredResolution)
         if (source != null) {
             val ready = PlaybackResult.Ready(source)
-            playbackCache.put(cacheKey, ready)
+            if (useCache) playbackCache.put(cacheKey, ready)
             return ready
         }
 
         return if (data.hasResource) {
             PlaybackResult.Failed("No playable rendition for this episode")
         } else {
-            PlaybackResult.NoResource.also { playbackCache.put(cacheKey, it) }
+            PlaybackResult.NoResource.also { if (useCache) playbackCache.put(cacheKey, it) }
         }
     }
 
