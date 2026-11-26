@@ -88,6 +88,11 @@ internal fun SettingsDialog(
     var siteHost by remember { mutableStateOf(settings.siteHost) }
     var showAdult by remember { mutableStateOf(settings.showAdultContent) }
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var updateStatus by remember { mutableStateOf("") }
+    var updateAvailable by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Settings") },
@@ -143,6 +148,39 @@ internal fun SettingsDialog(
                     onClick = onOpenDiagnostics,
                     modifier = Modifier.padding(top = 4.dp),
                 ) { Text("Run diagnostics") }
+
+                // In-app update: check the public release, auto-download, prompt install.
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            updateStatus = "Checking…"
+                            val info = UpdateChecker.check(context)
+                            updateAvailable = info.available
+                            updateStatus = info.message
+                            if (info.available) {
+                                updateStatus = info.message + " — downloading…"
+                                runCatching {
+                                    val apk = UpdateChecker.downloadApk(context, info.apkUrl)
+                                    updateStatus = "Download ready — confirm install"
+                                    UpdateChecker.launchInstaller(context, apk)
+                                }.onFailure {
+                                    updateStatus = "Download failed: ${it.message ?: "error"}"
+                                    UpdateChecker.openReleasesPage(context)
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.padding(top = 4.dp),
+                ) { Text("Check for updates") }
+                if (updateStatus.isNotBlank()) {
+                    Text(
+                        text = updateStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (updateAvailable) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
 
                 TextButton(
                     onClick = {

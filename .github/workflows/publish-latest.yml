@@ -25,6 +25,17 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
 
+      - name: Generate version.json
+        shell: bash
+        run: |
+          VC=$(grep -oP 'versionCode = \K\d+' app/build.gradle.kts)
+          VN=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          printf '{"versionCode": %s, "versionName": "%s", "apkUrl": "%s", "notes": "%s"}\n' \
+            "$VC" "$VN" \
+            "https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk" \
+            "Latest debug build" > version.json
+          cat version.json
+
       - name: Update "latest" release
         uses: softprops/action-gh-release@v2
         with:
@@ -35,5 +46,7 @@ jobs:
             https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk
           prerelease: false
           make_latest: true
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            version.json
           fail_on_unmatched_files: true
