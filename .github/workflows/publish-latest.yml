@@ -1,7 +1,8 @@
 name: Publish latest APK
 
-# Keeps the stable "latest" release (and its app-debug.apk asset) in sync with
-# every push to main, so a single bookmarked URL always fetches the newest build:
+# Keeps a stable `latest` release (app-debug.apk + version.json) in sync with
+# every push to main, AND creates a versioned vX.Y.Z release so GitHub shows a
+# new version each time. Permanent download URL:
 #   https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk
 on:
   push:
@@ -30,6 +31,7 @@ jobs:
         run: |
           VC=$(grep -oP 'versionCode = \K\d+' app/build.gradle.kts)
           VN=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "RELEASE_VERSION=$VN" >> "$GITHUB_ENV"
           printf '{"versionCode": %s, "versionName": "%s", "apkUrl": "%s", "notes": "%s"}\n' \
             "$VC" "$VN" \
             "https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk" \
@@ -44,6 +46,20 @@ jobs:
           body: |
             Always the newest debug build. Permanent download URL:
             https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk
+          prerelease: false
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            version.json
+          fail_on_unmatched_files: true
+
+      - name: Create versioned release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.RELEASE_VERSION }}
+          name: MovieBox Explorer v${{ env.RELEASE_VERSION }} (debug)
+          body: |
+            Auto-published build v${{ env.RELEASE_VERSION }}.
+            App download: https://github.com/raihanetx/moviebox-explorer/releases/latest/download/app-debug.apk
           prerelease: false
           make_latest: true
           files: |
