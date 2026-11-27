@@ -13,12 +13,16 @@ import com.example.movieboxexplorer.data.LanguageInfo
 import com.example.movieboxexplorer.data.DownloadMeta
 import com.example.movieboxexplorer.data.MovieBoxRepository
 import com.example.movieboxexplorer.data.PlaybackResult
+import com.example.movieboxexplorer.data.PlaybackRetry
 import com.example.movieboxexplorer.data.PlaybackSource
 import com.example.movieboxexplorer.data.SubjectBrief
 import com.example.movieboxexplorer.data.TitleInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -216,19 +220,34 @@ class DetailViewModel(
         }
     }
 
+    // download state is separate from `_playback` (player); downloads never pollute play state
+    private val _downloadResolving = MutableStateFlow(false)
+    val downloadResolving: StateFlow<Boolean> = _downloadResolving.asStateFlow()
+
+    private val _downloadErrors = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val downloadErrors: SharedFlow<String> = _downloadErrors.asSharedFlow()
+
     /** Resolves the selected episode and queues it in the system download manager. */
     fun download(quality: Int? = null) {
         val selection = _selection.value ?: return
         viewModelScope.launch {
-            _playback.value = PlaybackUiState.Resolving
-            val result = repository.playEpisode(
-                detailPath = selection.language.detailPath.ifBlank { detailPath },
-                subjectId = selection.language.subjectId.ifBlank { subjectId },
-                season = selection.season,
-                episode = selection.episode,
-                preferredResolution = quality,
-                useCache = false, // downloads always get a fresh signed URL
-            )
+            _downloadResolving.value = true
+            // Retry transient failures with backoff + fresh resolution — a VPN /
+            // DNS change at click time is a blip, not a reason to silently fail.
+            val result = PlaybackRetry.resolveFresh(
+                attempts = 3,
+                backoffMillis = { 600L * (it + 1) },
+            ) {
+                repository.playEpisode(
+                    detailPath = selection.language.detailPath.ifBlank { detailPath },
+                    subjectId = selection.language.subjectId.ifBlank { subjectId },
+                    season = selection.season,
+                    episode = selection.episode,
+                    preferredResolution = quality,
+                    useCache = false, // downloads always get a fresh signed URL
+                )
+            }
+            _downloadResolving.value = false
             when (result) {
                 is PlaybackResult.Ready -> {
                     val ready = _state.value as? DetailUiState.Ready
@@ -269,22 +288,16 @@ class DetailViewModel(
                             coverUrl = ready?.info?.subject?.cover?.url.orEmpty(),
                         ),
                     )
-                    _playback.value = PlaybackUiState.Idle
                 }
 
-                is PlaybackResult.NoResource -> {
-                    _playback.value = PlaybackUiState.Failed(
-                        "Episode ${selection.episode} was never uploaded for this track",
-                    )
-                }
+                is PlaybackResult.NoResource ->
+                    _downloadErrors.tryEmit("Episode ${selection.episode} was never uploaded for this track")
 
-                is PlaybackResult.Locked -> {
-                    _playback.value = PlaybackUiState.Failed(result.message)
-                }
+                is PlaybackResult.Locked ->
+                    _downloadErrors.tryEmit(result.message)
 
-                is PlaybackResult.Failed -> {
-                    _playback.value = PlaybackUiState.Failed(result.message)
-                }
+                is PlaybackResult.Failed ->
+                    _downloadErrors.tryEmit(result.message)
             }
         }
     }

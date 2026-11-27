@@ -47,9 +47,8 @@ class DownloadsViewModel(
 
     /** Network or VPN came back — retry anything that failed with a fresh URL. */
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) {
-            viewModelScope.launch { retryFailed() }
-        }
+        override fun onAvailable(network: Network) { retryFailed() }
+        override fun onCapabilitiesChanged(network: Network, caps: android.net.NetworkCapabilities) { retryFailed() }
     }
 
     init {
@@ -69,7 +68,12 @@ class DownloadsViewModel(
 
     /** Retry every failed (not paused) download once, with a freshly resolved URL. */
     fun retryFailed() {
-        _items.value.filter { it.isFailed }.forEach { retry(it.id) }
+        viewModelScope.launch {
+            // Give DownloadManager a moment to settle STATUS_FAILED after the
+            // network returns; re-read live items rather than a stale snapshot.
+            delay(500)
+            _items.value.filter { it.isFailed }.map { it.id }.forEach { retry(it) }
+        }
     }
 
     fun retry(id: Long) {
@@ -137,14 +141,21 @@ class DownloadsViewModel(
             }
             // Always re-resolve a FRESH signed URL for a retry/resume — never
             // replay a cached one; the previous attempt may have invalidated it.
-            when (val result = repository.playEpisode(
-                detailPath = meta.detailPath,
-                subjectId = meta.subjectId,
-                season = meta.season.coerceAtLeast(1),
-                episode = meta.episode.coerceAtLeast(1),
-                preferredResolution = meta.preferredResolution,
-                useCache = false,
-            )) {
+            // Retry transient failures with backoff (VPN/network reconnect).
+            val result = com.example.movieboxexplorer.data.PlaybackRetry.resolveFresh(
+                attempts = 3,
+                backoffMillis = { 600L * (it + 1) },
+            ) {
+                repository.playEpisode(
+                    detailPath = meta.detailPath,
+                    subjectId = meta.subjectId,
+                    season = meta.season.coerceAtLeast(1),
+                    episode = meta.episode.coerceAtLeast(1),
+                    preferredResolution = meta.preferredResolution,
+                    useCache = false,
+                )
+            }
+            when (result) {
                 is PlaybackResult.Ready -> {
                     val freshId = withContext(Dispatchers.IO) {
                         downloads.resume(id, result.source.url, result.source.headers)

@@ -126,6 +126,7 @@ fun DetailScreen(
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val download by viewModel.download.collectAsStateWithLifecycle()
+    val downloadResolving by viewModel.downloadResolving.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val downloads = remember { Downloads(context) }
 
@@ -167,6 +168,13 @@ fun DetailScreen(
         val ready = playback as? PlaybackUiState.Ready ?: return@LaunchedEffect
         showPicker = false
         onPlayEpisode(ready.source, ready.label)
+    }
+
+    // A download couldn't resolve (transient network/VPN, no upload, locked) — tell the user.
+    LaunchedEffect(Unit) {
+        viewModel.downloadErrors.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
     // A download request resolved — hand it to Android's DownloadManager.
@@ -258,7 +266,7 @@ fun DetailScreen(
             DownloadSheet(
                 info = (state as DetailUiState.Ready).info,
                 selection = selection,
-                resolving = playback is PlaybackUiState.Resolving,
+                resolving = downloadResolving,
                 onSelectLanguage = viewModel::selectLanguage,
                 onSelectSeason = viewModel::selectSeason,
                 onSelectEpisode = viewModel::selectEpisode,
